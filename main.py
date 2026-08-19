@@ -467,8 +467,8 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                     pubg_sayi = mesaj_info.get('pubg', {}).get('sayi', 0) if mesaj_info else 0
                     
                     sc_tarih = mesaj_info.get('supercell', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
-    konami_tarih = mesaj_info.get('konami', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
-                       pubg_tarih = mesaj_info.get('pubg', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
+                    konami_tarih = mesaj_info.get('konami', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
+                    pubg_tarih = mesaj_info.get('pubg', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
                     
                     # Normal hit - her zaman yaz
                     normal_hit = f"{combo}"
