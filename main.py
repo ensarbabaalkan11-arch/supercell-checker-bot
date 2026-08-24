@@ -17,15 +17,10 @@ ADMIN_THREAD = 10
 
 KEY_FILE = "keys.json"
 USER_FILE = "users.json"
-PROXY_FILE = "proxies.txt"
 
 HITS_FILE = "hotmailbothits.txt"
 TWOFA_FILE = "checkerbot2FA.txt"
 ZIP_FILE = "hotmailgamechecker.zip"
-
-proxy_list = []
-proxy_index = 0
-proxy_lock = threading.Lock()
 
 user_proxies = {}
 proxy_waiting = {}
@@ -617,6 +612,19 @@ def ana_menu(chat_id):
     
     send_message(chat_id, text, keyboard)
 
+def proxy_menu(chat_id):
+    user_id = str(chat_id)
+    count = len(user_proxies.get(user_id, []))
+    
+    keyboard = {
+        "inline_keyboard": [
+            [{"text": "📥 Proxy Ekle", "callback_data": "proxy_ekle"},
+             {"text": "🗑️ Proxy Sil", "callback_data": "proxy_sil"}],
+            [{"text": "🔙 Back", "callback_data": "main_menu"}],
+        ]
+    }
+    send_message(chat_id, f"📡 PROXY MENU\n\nLoaded: {count} proxies", keyboard)
+
 def fiyat_menu(chat_id):
     text = (
         f"💰 PRICE LIST\n\n"
@@ -979,8 +987,16 @@ def telegram_bot():
                         elif data_cb == "fiyatlar":
                             fiyat_menu(chat_id)
                         elif data_cb == "proxy":
+                            proxy_menu(chat_id)
+                        elif data_cb == "proxy_ekle":
                             proxy_waiting[chat_id] = True
-                            send_message(chat_id, "📡 Send your proxy file.\n\nFormat: proxies.txt\nEach line: ip:port or ip:port:user:pass")
+                            send_message(chat_id, "📥 Send your proxy file.\nEach line: ip:port or ip:port:user:pass")
+                        elif data_cb == "proxy_sil":
+                            user_id = str(chat_id)
+                            user_proxies.pop(user_id, None)
+                            user_proxy_index.pop(user_id, None)
+                            send_message(chat_id, "✅ Proxies removed.")
+                            proxy_menu(chat_id)
                         elif data_cb == "baslat":
                             send_message(chat_id, "📂 Send your combo file. Scanning will start automatically.")
                         elif data_cb == "multi_start":
@@ -994,11 +1010,7 @@ def telegram_bot():
                         elif data_cb == "key_daily":
                             if str(chat_id) == str(ADMIN_ID):
                                 key = generate_key("daily")
-                                send_message(chat_id, f"✅ DAILY KEY CREATED\n\nKey: {key}\nPrice: 750 TCoin\nSingle Scan: 3.000\nDuration: 24 hours\n\nTimer starts when used.")
-                        elif data_cb == "key_weekly":
-                            if str(chat_id) == str(ADMIN_ID):
-                                key = generate_key("weekly")
-                                send_message(chat_id, f"✅ WEEKLY KEY CREATED\n\nKey: {key}\nPrice: 3.000 TCoin\nSingle Scan: 5.000\nDuration: 7 days\n\nTimer starts when used.")
+                                send_message(chat_id, f"✅ DAILY KEY CREATED\n\nKey: {key}\nPrice: 3.000 TCoin\nSingle Scan: 5.000\nDuration: 7 days\n\nTimer starts when used.")
                         elif data_cb == "key_monthly":
                             if str(chat_id) == str(ADMIN_ID):
                                 key = generate_key("monthly")
@@ -1020,7 +1032,6 @@ def telegram_bot():
                         file_id = msg["document"]["file_id"]
                         file_name = msg["document"].get("file_name", "combo.txt")
                         
-                        # Proxy dosyası bekleniyorsa
                         if chat_id in proxy_waiting:
                             content = download_file(file_id)
                             if content:
@@ -1087,9 +1098,7 @@ def telegram_bot():
                     elif msg.get("text") == "/start":
                         ana_menu(chat_id)
                     elif msg.get("text") == "/proxy":
-                        user_id = str(chat_id)
-                        count = len(user_proxies.get(user_id, []))
-                        send_message(chat_id, f"📡 Proxies: {count} loaded")
+                        proxy_menu(chat_id)
                     elif msg.get("text") == "/stop":
                         tarama_durdur[chat_id] = True
                         send_message(chat_id, "⏹️ Stopping scan... Results will be sent shortly.")
