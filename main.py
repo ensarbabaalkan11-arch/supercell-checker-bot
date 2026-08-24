@@ -724,23 +724,26 @@ def keyler_listesi(chat_id):
                 continue
         
         kalan = ""
+        bitis = ""
         if data.get("expires"):
             expiry = datetime.fromisoformat(data["expires"])
             remaining = expiry - datetime.now()
             days = remaining.days
             hours = remaining.seconds // 3600
             kalan = f"{days}d {hours}h"
+            bitis = expiry.strftime('%Y-%m-%d %H:%M')
         else:
             kalan = "Not Started"
+            bitis = "Not started"
         
         bound = data.get("bound_to")
         sahip = f"👤 {bound}" if bound else "👤 Not Sold"
         
         type_label = PLANS[data["type"]]["name"]
-        aktif_keyler.append(f"{key}\n📋 {type_label} | ⏳ {kalan} | {sahip}")
+        aktif_keyler.append(f"{key}\n📋 {type_label} | ⏳ {kalan} | 📅 {bitis} | {sahip}")
     
     if aktif_keyler:
-        text = "📋 ACTIVE KEYS\n\n" + "\n\n".join(aktif_keyler) + f"\n\n━━━━━━━━━━━━━━━━━━\nTotal: {len(aktif_keyler)} keys"
+        text = "📋 ACTIVE KEYS\n\n" + "\n\n".join(aktif_keyler) + f"\n\n━━━━━━━━━━━━━━━━━━\nTotal: {len(aktif_keyler)} keys\n\nDelete: /keyiptal KEY"
     else:
         text = "📋 ACTIVE KEYS\n\nNo keys yet."
     
@@ -1010,7 +1013,11 @@ def telegram_bot():
                         elif data_cb == "key_daily":
                             if str(chat_id) == str(ADMIN_ID):
                                 key = generate_key("daily")
-                                send_message(chat_id, f"✅ DAILY KEY CREATED\n\nKey: {key}\nPrice: 3.000 TCoin\nSingle Scan: 5.000\nDuration: 7 days\n\nTimer starts when used.")
+                                send_message(chat_id, f"✅ DAILY KEY CREATED\n\nKey: {key}\nPrice: 750 TCoin\nSingle Scan: 3.000\nDuration: 24 hours\n\nTimer starts when used.")
+                        elif data_cb == "key_weekly":
+                            if str(chat_id) == str(ADMIN_ID):
+                                key = generate_key("weekly")
+                                send_message(chat_id, f"✅ WEEKLY KEY CREATED\n\nKey: {key}\nPrice: 3.000 TCoin\nSingle Scan: 5.000\nDuration: 7 days\n\nTimer starts when used.")
                         elif data_cb == "key_monthly":
                             if str(chat_id) == str(ADMIN_ID):
                                 key = generate_key("monthly")
@@ -1153,6 +1160,15 @@ def telegram_bot():
                         bakim(chat_id)
                     elif msg.get("text") == "/thread":
                         thread_menu(chat_id)
+                    elif msg.get("text", "").startswith("/keyiptal "):
+                        if str(chat_id) == str(ADMIN_ID):
+                            key = msg["text"].replace("/keyiptal", "").strip()
+                            if key in keys_db:
+                                del keys_db[key]
+                                save_db()
+                                send_message(chat_id, f"✅ Key deleted: {key}")
+                            else:
+                                send_message(chat_id, "❌ Key not found.")
                     elif msg.get("text", "").startswith("/key "):
                         if bakim_modu and str(chat_id) != str(ADMIN_ID):
                             send_message(chat_id, "🔧 Bot is in maintenance mode.")
