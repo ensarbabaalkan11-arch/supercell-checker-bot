@@ -37,6 +37,8 @@ GAME_EMAILS = {
     "roblox": {"email": "no-reply@roblox.com", "file": "robloxbothits.txt", "label": "🎲 ROBLOX"},
     "discord": {"email": "noreply@discord.com", "file": "discordbothits.txt", "label": "💬 DISCORD"},
     "mojang": {"email": "noreply@mojang.com", "file": "mojangbothits.txt", "label": "⛏️ MOJANG"},
+    "tiktok": {"email": "register@account.tiktok.com", "file": "tiktokbothits.txt", "label": "🎵 TIKTOK"},
+    "netflix": {"email": "info@account.netflix.com", "file": "netflixbothits.txt", "label": "🎬 NETFLIX"},
 }
 
 PLANS = {
