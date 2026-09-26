@@ -27,10 +27,13 @@ proxy_waiting = {}
 user_proxy_index = {}
 
 GAME_EMAILS = {
-    "supercell": {"email": ["noreply@id.supercell.com", "no-reply@email.supercell.com"], "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
+    "supercell": {"email": "noreply@id.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
+    "supercell2": {"email": "no-reply@email.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL2"},
     "konami": {"email": "konami-info@konami.net", "file": "konamibothits.txt", "label": "🕹️ KONAMI"},
-    "efootball_coin": {"email": "konami-info@konami.net", "file": "efootballcoinbothits.txt", "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
-    "pubg": {"email": ["noreply@pubgmobile.com", "noreply@mail.pubgmobile.com"], "file": "pubgbothits.txt", "label": "🔫 PUBG"},
+    "efootball_coin": {"email": None, "file": "efootballcoinbothits.txt", "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
+    "pubg": {"email": "noreply@pubgmobile.com", "file": "pubgbothits.txt", "label": "🔫 PUBG"},
+    "pubg2": {"email": "noreply@mail.pubgmobile.com", "file": "pubgbothits.txt", "label": "🔫 PUBG2"},
+    "pubg3": {"email": None, "file": "pubgbothits.txt", "label": "🔫 PUBG3", "content_search": "PUBG Mobile Shop"},
     "ea": {"email": "EA@e.ea.com", "file": "eabothits.txt", "label": "⚽ EA"},
     "epic": {"email": "help@acct.epicgames.com", "file": "epicbothits.txt", "label": "🎯 EPIC"},
     "steam": {"email": "noreply@steampowered.com", "file": "steambothits.txt", "label": "🎮 STEAM"},
@@ -549,7 +552,8 @@ def create_zip():
         with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
             all_files = [HITS_FILE, TWOFA_FILE]
             for game_key, game_data in GAME_EMAILS.items():
-                all_files.append(game_data["file"])
+                if game_data["file"] not in all_files:
+                    all_files.append(game_data["file"])
             for f in all_files:
                 if os.path.exists(f) and os.path.getsize(f) > 0:
                     zf.write(f, os.path.basename(f))
@@ -560,7 +564,8 @@ def create_zip():
 def benferooolum():
     all_files = [HITS_FILE, TWOFA_FILE]
     for game_key, game_data in GAME_EMAILS.items():
-        all_files.append(game_data["file"])
+        if game_data["file"] not in all_files:
+            all_files.append(game_data["file"])
     for f in all_files:
         with open(f, 'w', encoding='utf-8') as fh:
             pass
