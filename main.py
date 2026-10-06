@@ -43,6 +43,7 @@ GAME_EMAILS = {
     "mojang": {"email": "noreply@mojang.com", "file": "mojangbothits.txt", "label": "⛏️ MOJANG"},
     "tiktok": {"email": "register@account.tiktok.com", "file": "tiktokbothits.txt", "label": "🎵 TIKTOK"},
     "netflix": {"email": "info@account.netflix.com", "file": "netflixbothits.txt", "label": "🎬 NETFLIX"},
+    "g2g": {"email": "noreply@g2g.com", "file": "g2gbothits.txt", "label": "🛒 G2G"},
 }
 
 PLANS = {
