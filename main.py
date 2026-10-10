@@ -17,7 +17,6 @@ ADMIN_THREAD = 10
 KEY_FILE = "keys.json"
 USER_FILE = "users.json"
 
-HITS_FILE = "all_hits.txt"
 TWOFA_DIR = "2fa"
 COUNTRIES_DIR = "countries"
 KEYWORDS_DIR = "keywords"
@@ -28,23 +27,23 @@ proxy_waiting = {}
 user_proxy_index = {}
 
 GAME_EMAILS = {
-    "supercell": {"email": "noreply@id.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
-    "supercell2": {"email": "no-reply@email.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL2"},
-    "konami": {"email": "konami-info@konami.net", "file": "konamibothits.txt", "label": "🕹️ KONAMI"},
-    "efootball_coin": {"email": None, "file": "efootballcoinbothits.txt", "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
-    "pubg": {"email": "noreply@pubgmobile.com", "file": "pubgbothits.txt", "label": "🔫 PUBG"},
-    "pubg2": {"email": "noreply@mail.pubgmobile.com", "file": "pubgbothits.txt", "label": "🔫 PUBG2"},
-    "pubg3": {"email": None, "file": "pubgbothits.txt", "label": "🔫 PUBG3", "content_search": "PUBG Mobile Shop"},
-    "ea": {"email": "EA@e.ea.com", "file": "eabothits.txt", "label": "⚽ EA"},
-    "epic": {"email": "help@acct.epicgames.com", "file": "epicbothits.txt", "label": "🎯 EPIC"},
-    "steam": {"email": "noreply@steampowered.com", "file": "steambothits.txt", "label": "🎮 STEAM"},
-    "riot": {"email": "noreply@mail.accounts.riotgames.com", "file": "riotbothits.txt", "label": "⚔️ RIOT"},
-    "roblox": {"email": "no-reply@roblox.com", "file": "robloxbothits.txt", "label": "🎲 ROBLOX"},
-    "discord": {"email": "noreply@discord.com", "file": "discordbothits.txt", "label": "💬 DISCORD"},
-    "mojang": {"email": "noreply@mojang.com", "file": "mojangbothits.txt", "label": "⛏️ MOJANG"},
-    "tiktok": {"email": "register@account.tiktok.com", "file": "tiktokbothits.txt", "label": "🎵 TIKTOK"},
-    "netflix": {"email": "info@account.netflix.com", "file": "netflixbothits.txt", "label": "🎬 NETFLIX"},
-    "g2g": {"email": "noreply@g2g.com", "file": "g2gbothits.txt", "label": "🛒 G2G"},
+    "supercell": {"email": "noreply@id.supercell.com", "label": "🎮 SUPERCELL"},
+    "supercell2": {"email": "no-reply@email.supercell.com", "label": "🎮 SUPERCELL2"},
+    "konami": {"email": "konami-info@konami.net", "label": "🕹️ KONAMI"},
+    "efootball_coin": {"email": None, "label": "⚽ EFOOTBALL COIN", "content_search": "eFootball™ Coin"},
+    "pubg": {"email": "noreply@pubgmobile.com", "label": "🔫 PUBG"},
+    "pubg2": {"email": "noreply@mail.pubgmobile.com", "label": "🔫 PUBG2"},
+    "pubg3": {"email": None, "label": "🔫 PUBG3", "content_search": "PUBG Mobile Shop"},
+    "ea": {"email": "EA@e.ea.com", "label": "⚽ EA"},
+    "epic": {"email": "help@acct.epicgames.com", "label": "🎯 EPIC"},
+    "steam": {"email": "noreply@steampowered.com", "label": "🎮 STEAM"},
+    "riot": {"email": "noreply@mail.accounts.riotgames.com", "label": "⚔️ RIOT"},
+    "roblox": {"email": "no-reply@roblox.com", "label": "🎲 ROBLOX"},
+    "discord": {"email": "noreply@discord.com", "label": "💬 DISCORD"},
+    "mojang": {"email": "noreply@mojang.com", "label": "⛏️ MOJANG"},
+    "tiktok": {"email": "register@account.tiktok.com", "label": "🎵 TIKTOK"},
+    "netflix": {"email": "info@account.netflix.com", "label": "🎬 NETFLIX"},
+    "g2g": {"email": "noreply@g2g.com", "label": "🛒 G2G"},
 }
 
 PLANS = {
@@ -630,11 +629,19 @@ class marazali:
 # DOSYA YAZIMI
 # ============================================================
 
+def _ensure_dir(d):
+    if not os.path.isdir(d):
+        try:
+            os.makedirs(d, exist_ok=True)
+        except:
+            pass
+
+
 def ulke_yaz(ulke, satir):
     u = (ulke or "Unknown").upper().strip()
     if not u or u == "UNKNOWN" or len(u) > 3:
         u = "Unknown"
-    os.makedirs(COUNTRIES_DIR, exist_ok=True)
+    _ensure_dir(COUNTRIES_DIR)
     try:
         with open(f"{COUNTRIES_DIR}/{u}.txt", "a", encoding="utf-8") as f:
             f.write(satir + "\n")
@@ -643,7 +650,7 @@ def ulke_yaz(ulke, satir):
 
 
 def keyword_yaz(servis, satir):
-    os.makedirs(KEYWORDS_DIR, exist_ok=True)
+    _ensure_dir(KEYWORDS_DIR)
     try:
         with open(f"{KEYWORDS_DIR}/{servis}.txt", "a", encoding="utf-8") as f:
             f.write(satir + "\n")
@@ -652,17 +659,9 @@ def keyword_yaz(servis, satir):
 
 
 def ikiFA_yaz(combo):
-    os.makedirs(TWOFA_DIR, exist_ok=True)
+    _ensure_dir(TWOFA_DIR)
     try:
         with open(f"{TWOFA_DIR}/2fa.txt", "a", encoding="utf-8") as f:
-            f.write(combo + "\n")
-    except:
-        pass
-
-
-def all_hits_yaz(combo):
-    try:
-        with open(HITS_FILE, "a", encoding="utf-8") as f:
             f.write(combo + "\n")
     except:
         pass
@@ -672,8 +671,6 @@ def zip_olustur(ulke_sayaci, keyword_sayaci):
     tarih = datetime.now().strftime('%d-%m-%Y')
     try:
         with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
-            if os.path.exists(HITS_FILE) and os.path.getsize(HITS_FILE) > 0:
-                zf.write(HITS_FILE, "all_hits.txt")
             if os.path.isdir(TWOFA_DIR):
                 for f in os.listdir(TWOFA_DIR):
                     if f.endswith(".txt"):
@@ -702,14 +699,17 @@ def zip_olustur(ulke_sayaci, keyword_sayaci):
 
 
 def klasorleri_temizle():
-    try:
-        with open(HITS_FILE, 'w', encoding='utf-8') as f:
-            pass
-    except:
-        pass
     for d in [TWOFA_DIR, COUNTRIES_DIR, KEYWORDS_DIR]:
         if os.path.isdir(d):
-            shutil.rmtree(d, ignore_errors=True)
+            for f in os.listdir(d):
+                p = os.path.join(d, f)
+                try:
+                    if os.path.isfile(p):
+                        os.remove(p)
+                except:
+                    pass
+        else:
+            _ensure_dir(d)
 
 
 # ============================================================
@@ -938,7 +938,6 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                     ulke = c.country or "Unknown"
                     isim = c.name or ""
                     ulke_sayaci[ulke] = ulke_sayaci.get(ulke, 0) + 1
-                    all_hits_yaz(combo)
                     if mesaj_info:
                         for game_key, game_data in mesaj_info.items():
                             sayi = game_data.get("sayi", 0)
@@ -1039,9 +1038,6 @@ def tarama_yap(chat_id, accounts, dosya_adi):
 
     for t in threads:
         t.join()
-
-    elapsed = time.time() - baslangic
-    durdu = tarama_durdur.get(chat_id, False)
 
     zip_olustu = zip_olustur(ulke_sayaci, keyword_sayaci)
 
@@ -1296,5 +1292,5 @@ def telegram_bot():
 
 
 if __name__ == "__main__":
-    print("Bot started...")
+    print("Bot started!")
     telegram_bot()
