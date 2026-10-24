@@ -1,3 +1,14 @@
+from flask import Flask
+import os
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 import sys, os, re, json, time, random, threading, requests, zipfile, io
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
@@ -1258,5 +1269,8 @@ def telegram_bot():
 
 
 if __name__ == "__main__":
+    # Flask'ı arka planda başlat (Render port hatası için)
+    threading.Thread(target=run_flask, daemon=True).start()
+    
     print("Bot started!")
     telegram_bot()
