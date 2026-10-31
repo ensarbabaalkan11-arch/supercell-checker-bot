@@ -849,7 +849,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
             status, mesaj_info = c.check(tag)
 
             with lock:
-                if status == "SUCCESS":
+            if status == "SUCCESS":
     state["hit"] += 1
         ulke = (c.country or "Unknown").upper().strip()
         if not ulke or len(ulke) > 3:
